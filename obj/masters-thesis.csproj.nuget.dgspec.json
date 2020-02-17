@@ -1,0 +1,64 @@
+{
+  "format": 1,
+  "restore": {
+    "/home/melker/masters-thesis/masters-thesis.csproj": {}
+  },
+  "projects": {
+    "/home/melker/masters-thesis/masters-thesis.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/melker/masters-thesis/masters-thesis.csproj",
+        "projectName": "masters-thesis",
+        "projectPath": "/home/melker/masters-thesis/masters-thesis.csproj",
+        "packagesPath": "/home/melker/.nuget/packages/",
+        "outputPath": "/home/melker/masters-thesis/obj/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/melker/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "netcoreapp3.1"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "netcoreapp3.1": {
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        }
+      },
+      "frameworks": {
+        "netcoreapp3.1": {
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.NETCore.App.Host.linux-x64",
+              "version": "[3.1.0, 3.1.0]"
+            }
+          ],
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/3.1.100/RuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}
