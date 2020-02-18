@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "/home/melker/masters-thesis/masters-thesis.csproj": {}
+    "/home/melker/masters-thesis/syntax-tree-example/masters-thesis.csproj": {}
   },
   "projects": {
-    "/home/melker/masters-thesis/masters-thesis.csproj": {
+    "/home/melker/masters-thesis/syntax-tree-example/masters-thesis.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/home/melker/masters-thesis/masters-thesis.csproj",
+        "projectUniqueName": "/home/melker/masters-thesis/syntax-tree-example/masters-thesis.csproj",
         "projectName": "masters-thesis",
-        "projectPath": "/home/melker/masters-thesis/masters-thesis.csproj",
+        "projectPath": "/home/melker/masters-thesis/syntax-tree-example/masters-thesis.csproj",
         "packagesPath": "/home/melker/.nuget/packages/",
-        "outputPath": "/home/melker/masters-thesis/obj/",
+        "outputPath": "/home/melker/masters-thesis/syntax-tree-example/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "/home/melker/.nuget/NuGet/NuGet.Config"
