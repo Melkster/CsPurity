@@ -1,3 +1,4 @@
+// Example from https://docs.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/get-started/syntax-analysis#syntax-walkers
 using System;
 using System.Linq;
 using static System.Console;
@@ -42,6 +43,15 @@ namespace SyntaxWalker
 
         static void Main(string[] args)
         {
+            SyntaxTree tree = CSharpSyntaxTree.ParseText(programText);
+            CompilationUnitSyntax root = tree.GetCompilationUnitRoot();
+
+            var collector = new UsingCollector();
+            collector.Visit(root);
+            foreach (var directive in collector.Usings)
+            {
+                WriteLine(directive.Name);
+            }
         }
     }
 }
