@@ -11,62 +11,44 @@ namespace masters_thesis
 {
     class Program
     {
-        const string programText =
-        @"using System;
-        using System.Collections;
-        using System.Linq;
-        using System.Text;
-
-        namespace HelloWorld
+        private static void Main()
         {
-            class Program
-            {
-                static void Main(string[] args)
+            var tree = CSharpSyntaxTree.ParseText(@"
+            class C1 {
+                private int var1;
+                public string var2;
+ 
+                void action1(int parameter1, String parameter2)
                 {
-                    Console.WriteLine(""Hello, World!"");
+                    var o1 = new C1();
+                    int res = add(parameter1, parameter2);
+                    int var3;
+                    var3=var1*var1;
+                    var2=""Completed"";
+                }
+
+                int add(int left, int right) {
+                    return left + right;
                 }
             }
-        }";
+            ");
+            var root = (CompilationUnitSyntax) tree.GetRoot();
+            var variableDeclarations = root.DescendantNodes().OfType<VariableDeclarationSyntax>();
 
-        static void Main(string[] args)
-        {
-            SyntaxTree tree = CSharpSyntaxTree.ParseText(programText);
-            CompilationUnitSyntax root = tree.GetCompilationUnitRoot();
+            Console.WriteLine("Declare variables:");
 
-            WriteLine($"The tree is a {root.Kind()} node.");
-            WriteLine($"The tree has {root.Members.Count} elements in it.");
-            WriteLine($"The tree has {root.Usings.Count} using statements. They are:");
-            foreach (UsingDirectiveSyntax element in root.Usings)
-                WriteLine($"\t{element.Name}");
+            foreach (var variableDeclaration in variableDeclarations)
+                Console.WriteLine(variableDeclaration.Variables.First().Identifier.Value);
 
-            MemberDeclarationSyntax firstMember = root.Members[0];
-            WriteLine($"The first member is a {firstMember.Kind()}.");
-            var helloWorldDeclaration = (NamespaceDeclarationSyntax)firstMember;
+            var variableAssignments = root.DescendantNodes().OfType<AssignmentExpressionSyntax>();
 
-            WriteLine($"There are {helloWorldDeclaration.Members.Count} members declared in this namespace.");
-            WriteLine($"The first member is a {helloWorldDeclaration.Members[0].Kind()}.");
+            Console.WriteLine("Assign variables:");
 
-            var programDeclaration = (ClassDeclarationSyntax)helloWorldDeclaration.Members[0];
-            WriteLine($"There are {programDeclaration.Members.Count} members declared in the {programDeclaration.Identifier} class.");
-            WriteLine($"The first member is a {programDeclaration.Members[0].Kind()}.");
-            var mainDeclaration = (MethodDeclarationSyntax)programDeclaration.Members[0];
+            foreach (var variableAssignment in variableAssignments)
+                Console.WriteLine($"Left: {variableAssignment.Left}, Right: {variableAssignment.Right}");
 
-            WriteLine($"The return type of the {mainDeclaration.Identifier} method is {mainDeclaration.ReturnType}.");
-            WriteLine($"The method has {mainDeclaration.ParameterList.Parameters.Count} parameters.");
-            foreach (ParameterSyntax item in mainDeclaration.ParameterList.Parameters)
-                WriteLine($"The type of the {item.Identifier} parameter is {item.Type}.");
-            WriteLine($"The body text of the {mainDeclaration.Identifier} method follows:");
-            WriteLine(mainDeclaration.Body.ToFullString());
-
-            var argsParameter = mainDeclaration.ParameterList.Parameters[0];
-
-            var firstParameters = from methodDeclaration in root.DescendantNodes().OfType<MethodDeclarationSyntax>()
-                                  where methodDeclaration.Identifier.ValueText == "Main"
-                                  select methodDeclaration.ParameterList.Parameters.First();
-
-            var argsParameter2 = firstParameters.Single();
-
-            WriteLine(argsParameter == argsParameter2);
+            foreach (var member in root.DescendantNodes().OfType<MemberAccessExpressionSyntax>())
+                Console.WriteLine($"Member: {member}");
         }
     }
 }

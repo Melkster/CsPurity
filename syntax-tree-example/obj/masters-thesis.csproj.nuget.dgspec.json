@@ -1,25 +1,27 @@
 {
   "format": 1,
   "restore": {
-    "/home/melker/masters-thesis/syntax-tree-example/masters-thesis.csproj": {}
+    "C:\\Users\\Melker\\git-repos\\masters-thesis\\syntax-tree-example\\masters-thesis.csproj": {}
   },
   "projects": {
-    "/home/melker/masters-thesis/syntax-tree-example/masters-thesis.csproj": {
+    "C:\\Users\\Melker\\git-repos\\masters-thesis\\syntax-tree-example\\masters-thesis.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/home/melker/masters-thesis/syntax-tree-example/masters-thesis.csproj",
+        "projectUniqueName": "C:\\Users\\Melker\\git-repos\\masters-thesis\\syntax-tree-example\\masters-thesis.csproj",
         "projectName": "masters-thesis",
-        "projectPath": "/home/melker/masters-thesis/syntax-tree-example/masters-thesis.csproj",
-        "packagesPath": "/home/melker/.nuget/packages/",
-        "outputPath": "/home/melker/masters-thesis/syntax-tree-example/obj/",
+        "projectPath": "C:\\Users\\Melker\\git-repos\\masters-thesis\\syntax-tree-example\\masters-thesis.csproj",
+        "packagesPath": "C:\\Users\\Melker\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\Melker\\git-repos\\masters-thesis\\syntax-tree-example\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "/home/melker/.nuget/NuGet/NuGet.Config"
+          "C:\\Users\\Melker\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
           "netcoreapp3.1"
         ],
         "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
@@ -51,18 +53,12 @@
           ],
           "assetTargetFallback": true,
           "warn": true,
-          "downloadDependencies": [
-            {
-              "name": "Microsoft.NETCore.App.Host.linux-x64",
-              "version": "[3.1.0, 3.1.0]"
-            }
-          ],
           "frameworkReferences": {
             "Microsoft.NETCore.App": {
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/3.1.100/RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\3.1.101\\RuntimeIdentifierGraph.json"
         }
       }
     }
