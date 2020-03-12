@@ -11,44 +11,93 @@ namespace masters_thesis
 {
     class Program
     {
+
+        // TODO
+        static void FindDeclaration(SyntaxNode variable, CompilationUnitSyntax root)
+        {
+            var fieldDeclarations = root.DescendantNodes().OfType<FieldDeclarationSyntax>();
+
+            foreach (var fieldDeclarator in fieldDeclarations)
+                Console.WriteLine(fieldDeclarator.FirstAncestorOrSelf<VariableDeclaratorSyntax>());
+
+            //if (fieldDeclarations.Where(fieldDeclaration => fieldDeclaration.Contains());
+        }
+
+
+        public static bool CompilationLookUpSymbols(SyntaxTree tree, CSharpSyntaxNode currentNode, string symbolToFind)
+        {
+            var compilation = CSharpCompilation.Create("dummy", new[] { tree });
+            var model = compilation.GetSemanticModel(tree);
+            var symbol = model.LookupSymbols(currentNode.SpanStart, name: symbolToFind);
+            return model.LookupSymbols(currentNode.SpanStart, name: symbolToFind).Any();
+        }
+
         private static void Main()
         {
             var tree = CSharpSyntaxTree.ParseText(@"
-            class C1 {
-                private int var1;
-                public string var2;
- 
-                void action1(int parameter1, String parameter2)
-                {
-                    var o1 = new C1();
-                    int res = add(parameter1, parameter2);
-                    int var3;
-                    var3=var1*var1;
-                    var2=""Completed"";
-                }
+                using System;
 
-                int add(int left, int right) {
-                    return left + right;
+                namespace TestApp
+                {
+                    class C1
+                    {
+                        int bar = 42;
+                        void add()
+                        {
+                            bar = 3;
+                            double x = 1 + 1;
+                        }
+                    }
                 }
-            }
             ");
-            var root = (CompilationUnitSyntax) tree.GetRoot();
+            var root = (CompilationUnitSyntax)tree.GetRoot();
             var variableDeclarations = root.DescendantNodes().OfType<VariableDeclarationSyntax>();
 
-            Console.WriteLine("Declare variables:");
+            // foreach (var node in root.DescendantNodes().OfType<AssignmentExpressionSyntax>())
+            // Console.WriteLine(node.DescendantNodes(node => node.IsKind(IdentifierName));
 
-            foreach (var variableDeclaration in variableDeclarations)
-                Console.WriteLine(variableDeclaration.Variables.First().Identifier.Value);
+            //FindDeclaration()
 
-            var variableAssignments = root.DescendantNodes().OfType<AssignmentExpressionSyntax>();
+            // Console.WriteLine(root.DescendantNodes().ToList().Count());
 
-            Console.WriteLine("Assign variables:");
+            // foreach (var node in root.DescendantNodes())
+            //    Console.WriteLine(node.GetType());
 
-            foreach (var variableAssignment in variableAssignments)
-                Console.WriteLine($"Left: {variableAssignment.Left}, Right: {variableAssignment.Right}");
+            // foreach (var foo in root.DescendantNodes().OfType<UsingDirectiveSyntax>())
 
-            foreach (var member in root.DescendantNodes().OfType<MemberAccessExpressionSyntax>())
-                Console.WriteLine($"Member: {member}");
+            var identifiers = root.DescendantNodes().OfType<IdentifierNameSyntax>();
+            IdentifierNameSyntax foo = identifiers.First();
+            //Console.WriteLine(foo);
+
+            // Console.Write(CompilationLookUpSymbols(tree, f oo, "foo"));
+
+            // Console.WriteLine("Declare variables:");
+
+            // foreach (var variableDeclaration in variableDeclarations)
+            //     Console.WriteLine(variableDeclaration.Variables.First().Identifier.Value);
+
+            // var variableAssignments = root.DescendantNodes().OfType<AssignmentExpressionSyntax>();
+
+            // Console.WriteLine("Assign variables:");
+            // foreach (var variableAssignment in variableAssignments)
+            //     Console.WriteLine($"Left: {variableAssignment.Left}, Right: {variableAssignment.Right}");
+
+            // foreach (var member in root.DescendantNodes().OfType<MemberAccessExpressionSyntax>())
+            //     Console.WriteLine($"Member: {member}");
+
+            // ---
+
+            var compilation = CSharpCompilation.Create("HelloWorld").AddReferences(MetadataReference.CreateFromFile(typeof(string).Assembly.Location)).AddSyntaxTrees(tree);
+            SemanticModel model = compilation.GetSemanticModel(tree);
+
+            // Use the syntax tree to find "using System;"
+            UsingDirectiveSyntax usingSystem = root.Usings[0];
+            NameSyntax systemName = usingSystem.Name;
+
+            // Use the semantic model for symbol information:
+            SymbolInfo nameInfo = model.GetSymbolInfo(systemName);
+
+            Console.WriteLine(nameInfo);
         }
     }
 }
