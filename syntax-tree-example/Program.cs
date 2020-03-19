@@ -1,11 +1,8 @@
-﻿// Example from https://docs.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/get-started/syntax-analysis#traversing-trees
-using System;
+﻿using System;
 using System.Linq;
-using static System.Console;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace masters_thesis
 {
@@ -47,6 +44,11 @@ namespace masters_thesis
                             bar = 3;
                             double x = 1 + 1;
                         }
+
+                        public void Main()
+                        {
+                            add();
+                        }
                     }
                 }
             ");
@@ -68,6 +70,7 @@ namespace masters_thesis
             var identifiers = root.DescendantNodes().OfType<IdentifierNameSyntax>();
             IdentifierNameSyntax foo = identifiers.First();
             //Console.WriteLine(foo);
+
 
             // Console.Write(CompilationLookUpSymbols(tree, f oo, "foo"));
 
@@ -97,7 +100,22 @@ namespace masters_thesis
             // Use the semantic model for symbol information:
             SymbolInfo nameInfo = model.GetSymbolInfo(systemName);
 
-            Console.WriteLine(nameInfo);
+            // ---
+
+            var barDeclaration = root.DescendantTokens().First(t => t.Text == "bar").Parent;
+            //var barAssignment = root.DescendantTokens().Last(t => t.Text == "bar").Parent;
+            var barAssignment = root.DescendantNodes().OfType<IdentifierNameSyntax>().Where(n => n.Identifier.Text == "bar").Single();
+            var addDefinition = root.DescendantNodes().OfType<MethodDeclarationSyntax>().Where(n => n.Identifier.Text == "add").Single();
+            var addCall = root.DescendantNodes().OfType<IdentifierNameSyntax>().Where(n => n.Identifier.Text == "add").Single();
+
+            var barDeclarationFromAssignment = (model.GetSymbolInfo(barAssignment).Symbol.DeclaringSyntaxReferences.Single());
+            var addDeclarationFromAssignment = (model.GetSymbolInfo(addCall).Symbol.DeclaringSyntaxReferences.Single());
+
+            // WriteLine(model.GetSymbolInfo(barAssignment).Symbol.SyntaxNode);
+
+            var barSymbol = model.GetSymbolInfo(barAssignment).Symbol;
+            var addSymbol = model.GetSymbolInfo(addCall).Symbol;
+
         }
     }
 }
