@@ -2,13 +2,13 @@
 
 namespace CsPurity
 {
-    class Program
+    public class CsPurityAnalyzer
     {
-
-        public bool analyze(string text)
+        public static bool Analyze(string text)
         {
             return true;
         }
+
 
         static void Main(string[] args)
         {

@@ -1,5 +1,4 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Microsoft.CodeAnalysis;
 using CsPurity;
 
 namespace CsPurityTests
@@ -20,8 +19,7 @@ namespace CsPurityTests
                     }
                 }
             ");
-
-            Assert.IsTrue(true);
+            Assert.IsTrue(CsPurityAnalyzer.Analyze(file));
         }
     }
 }

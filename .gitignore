@@ -45,6 +45,5 @@ Ankh.NoLoad
 
 #Other
 *.svn
-*.sln
 .vs/
 .vscode/
