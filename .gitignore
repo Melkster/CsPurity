@@ -44,4 +44,7 @@ _ReSharper*/
 Ankh.NoLoad
 
 #Other
-.svn
+*.svn
+*.sln
+.vs/
+.vscode/
