@@ -3,6 +3,7 @@ using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System.Collections.Generic;
 
 using static System.Console;
 
@@ -10,8 +11,14 @@ namespace CsPurity
 {
     public class CsPurityAnalyzer
     {
-        public static bool Analyze(string text)
+        /// <summary>
+        /// Analyzes the purity of the given text.
+        /// </summary>
+        /// <param name="text"></param>
+        /// <returns>The average purity of all methods in <paramref name="text"/></returns>
+        public static double Analyze(string text)
         {
+            var result = new List<int>();
             var tree = CSharpSyntaxTree.ParseText(text);
             var root = (CompilationUnitSyntax)tree.GetRoot();
             var compilation = CSharpCompilation.Create("HelloWorld")
@@ -21,7 +28,6 @@ namespace CsPurity
                     )
                 ).AddSyntaxTrees(tree);
             var model = compilation.GetSemanticModel(tree);
-
             var methodDeclarations = root.DescendantNodes().OfType<MethodDeclarationSyntax>();
 
             foreach (var methodDeclaration in methodDeclarations)
@@ -38,10 +44,10 @@ namespace CsPurity
                     bool methodIsPure = false;
 
                     if (methodAncestors.Any()) methodIsPure = methodAncestors.First() == methodDeclaration;
-                    return methodIsPure;
+                    result.Add(Convert.ToInt32(methodIsPure));
                 }
             }
-            return true;
+            return result.Average();
         }
 
         static void Main(string[] args)

@@ -19,7 +19,7 @@ namespace CsPurityTests
                     }
                 }
             ");
-            Assert.IsFalse(CsPurityAnalyzer.Analyze(file));
+            Assert.AreEqual(0, CsPurityAnalyzer.Analyze(file));
         }
 
         [TestMethod]
@@ -35,7 +35,7 @@ namespace CsPurityTests
                     }
                 }
             ");
-            Assert.IsTrue(CsPurityAnalyzer.Analyze(file));
+            Assert.AreEqual(1, CsPurityAnalyzer.Analyze(file));
         }
     }
 }
