@@ -32,13 +32,18 @@ namespace CsPurity
 
             foreach (var methodDeclaration in methodDeclarations)
             {
-                var identifierNames = methodDeclaration.DescendantNodes().OfType<IdentifierNameSyntax>();
+                var identifierNames = methodDeclaration
+                    .DescendantNodes()
+                    .OfType<IdentifierNameSyntax>()
+                    .Where(i => i.Identifier.Text != "var"); // `var` also counts as IdentifierNameSyntax
+
                 foreach (var identifierName in identifierNames)
                 {
                     var identifierSymbol = (VariableDeclaratorSyntax)model
                         .GetSymbolInfo(identifierName)
-                        .Symbol
-                        .DeclaringSyntaxReferences.Single() // TODO: look at all references
+                        .Symbol // TODO: `.Symbol` can be null, for instance when the symbol is a class name
+                        .DeclaringSyntaxReferences
+                        .Single() // TODO: look at all references
                         .GetSyntax();
                     var methodAncestors = identifierSymbol.Ancestors().OfType<MethodDeclarationSyntax>();
                     bool methodIsPure = false;
@@ -53,30 +58,46 @@ namespace CsPurity
 
         static void Main(string[] args)
         {
-            var file = (@"
-                namespace TestApp
+            if (!args.Any())
+            {
+                WriteLine("Please provide path to C# file to be analyzed.");
+            }
+            else if (args.Contains("--help")) {
+                WriteLine(@"
+                    Checks purity of C# source file.
+
+                    -s \t use this flag if input is the C# program as a string, rather than its filepath
+                ");
+            }
+            else if (args.Contains("-s"))
+            {
+                WriteLine("-s was used as flag");
+                int textIndex = Array.IndexOf(args, "-s") + 1;
+                if (textIndex < args.Length)
                 {
-                    class C1
-                    {
-                        string bar = ""subtract"";
-                        string subtract()
-                        {
-                            return bar;
-                        }
-
-                        class C2
-                        {
-                            string add()
-                            {
-                                string foo = ""add"";
-                                return foo;
-                            }
-                        }
-                    }
+                    WriteLine(args[textIndex]);
+                    string file = args[textIndex];
+                    WriteLine(Analyze(file));
                 }
-            ");
-
-            Analyze(file);
+                else
+                {
+                    WriteLine("Missing program string to be parsed as an argument.");
+                }
+            }
+            else
+            {
+                try
+                {
+                    string file = System.IO.File.ReadAllText(args[0]);
+                    WriteLine(Analyze(file));
+                } catch (System.IO.FileNotFoundException err)
+                {
+                    WriteLine(err.Message);
+                } catch
+                {
+                    WriteLine($"Something went wrong when reading the file {args[0]}");
+                }
+            }
         }
     }
 }
