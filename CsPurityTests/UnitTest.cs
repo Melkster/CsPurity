@@ -37,5 +37,25 @@ namespace CsPurityTests
             ");
             Assert.AreEqual(1, CsPurityAnalyzer.Analyze(file));
         }
+
+        /// <summary>
+        /// Empty input or input with no methods should have no purity.
+        /// </summary>
+        [TestMethod]
+
+        public void TestNoMethodsInInput()
+        {
+            var file1 = ("");
+            var file2 = ("foo");
+            var file3 = (@"
+                namespace TestSpace
+                {
+                    class TestClass { }
+                }
+            ");
+            Assert.AreEqual(0, CsPurityAnalyzer.Analyze(file1));
+            Assert.AreEqual(0, CsPurityAnalyzer.Analyze(file2));
+            Assert.AreEqual(0, CsPurityAnalyzer.Analyze(file3));
+        }
     }
 }

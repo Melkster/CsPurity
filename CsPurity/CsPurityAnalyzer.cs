@@ -47,7 +47,8 @@ namespace CsPurity
                     result.Add(Convert.ToInt32(methodIsPure));
                 }
             }
-            return result.Average();
+
+            return result.Any() ? result.Average() : 0; // If input text has no methods purity is 0
         }
 
         static void Main(string[] args)
