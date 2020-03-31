@@ -13,7 +13,7 @@ namespace CsPurityTests
                 class C1
                 {
                     int bar = 42;
-                    void foo()
+                    int foo()
                     {
                         return bar;
                     }
@@ -28,7 +28,7 @@ namespace CsPurityTests
             var file = (@"
                 class C1
                 {
-                    void foo()
+                    int foo()
                     {
                         int bar = 42;
                         return bar;
@@ -42,7 +42,6 @@ namespace CsPurityTests
         /// Empty input or input with no methods should have no purity.
         /// </summary>
         [TestMethod]
-
         public void TestNoMethodsInInput()
         {
             var file1 = ("");
@@ -56,6 +55,28 @@ namespace CsPurityTests
             Assert.AreEqual(0, CsPurityAnalyzer.Analyze(file1));
             Assert.AreEqual(0, CsPurityAnalyzer.Analyze(file2));
             Assert.AreEqual(0, CsPurityAnalyzer.Analyze(file3));
+        }
+
+        /// <summary>
+        /// Analyzer should handle local implicitly typed variables.
+        ///
+        /// Because `var` counts as an IdentifierNameSyntax this initially
+        /// caused problems with the code.
+        /// </summary>
+        [TestMethod]
+        public void HandleImmplicitlytTypedVariables()
+        {
+            var file = (@"
+                class C1
+                {
+                    int foo()
+                    {
+                        var bar = 42;
+                        return bar;
+                    }
+                }
+            ");
+            Assert.AreEqual(1, CsPurityAnalyzer.Analyze(file));
         }
     }
 }
