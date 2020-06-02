@@ -4,11 +4,19 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Collections.Generic;
+using System.Data;
 
 using static System.Console;
 
 namespace CsPurity
 {
+    public enum Purity
+    {
+        Pure,
+        ParametricallyImpure,
+        Impure
+    }
+
     public class CsPurityAnalyzer
     {
         /// <summary>
@@ -56,6 +64,23 @@ namespace CsPurity
             return result.Any() ? result.Average() : 0; // If input text has no methods purity is 0
         }
 
+        public static DataTable InitializeLookupTable()
+        {
+            DataTable lookupTable = new DataTable();
+            lookupTable.Columns.Add("identifier", typeof(string));
+            lookupTable.Columns.Add("dependencies", typeof(List<string>));
+            lookupTable.Columns.Add("purity", typeof(Purity));
+            return lookupTable;
+        }
+
+        public static DataTable BuildLookupTable(CompilationUnitSyntax root)
+        {
+            DataTable lookupTable = InitializeLookupTable();
+            lookupTable.Rows.Add("foo", new List<string> { "bar" }, Purity.Pure);
+            lookupTable.Rows.Add("bar", new List<string>(), Purity.Pure);
+            return lookupTable;
+        }
+
         static void Main(string[] args)
         {
             if (!args.Any())
@@ -71,11 +96,11 @@ namespace CsPurity
             }
             else if (args.Contains("-s"))
             {
-                WriteLine("-s was used as flag");
+                //WriteLine("-s was used as flag");
                 int textIndex = Array.IndexOf(args, "-s") + 1;
                 if (textIndex < args.Length)
                 {
-                    WriteLine(args[textIndex]);
+                    //WriteLine(args[textIndex]);
                     string file = args[textIndex];
                     WriteLine(Analyze(file));
                 }

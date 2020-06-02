@@ -1,5 +1,11 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using CsPurity;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System.Data;
+using System.Collections.Generic;
+using System;
+using System.Linq;
 
 namespace CsPurityTests
 {
@@ -77,6 +83,68 @@ namespace CsPurityTests
                 }
             ");
             Assert.AreEqual(1, CsPurityAnalyzer.Analyze(file));
+        }
+
+        [TestMethod]
+        public void TestBuildLookupTable()
+        {
+            var file = (@"
+                class C1
+                {
+                    int foo()
+                    {
+                        return bar();
+                    }
+
+                    int bar()
+                    {
+                        return 42;
+                    }
+                }
+            ");
+            DataTable lookupTable = CsPurityAnalyzer.InitializeLookupTable();
+            lookupTable.Rows.Add("foo", new List<string> { "bar" }, Purity.Pure);
+            lookupTable.Rows.Add("bar", new List<string>(), Purity.Pure);
+
+            var tree = CSharpSyntaxTree.ParseText(file);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+
+            Assert.IsTrue(TablesAreEqual(lookupTable, CsPurityAnalyzer.BuildLookupTable(root)));
+        }
+
+        static bool TablesAreEqual(DataTable table1, DataTable table2)
+        {
+            if (table1.Rows.Count != table1.Rows.Count) return false;
+
+            for (int i = 0; i < table1.Rows.Count; i++)
+            {
+                if (!RowsAreEqual(table1.Rows[i], table2.Rows[i])) return false;
+            }
+            return true;
+
+            static bool RowsAreEqual(DataRow row1, DataRow row2)
+            {
+                return
+                    row1.Field<string>("identifier") == row2.Field<string>("identifier") &&
+                    row1.Field<Purity>("purity") == row2.Field<Purity>("purity") &&
+                    ListsAreEqual(row1.Field<List<string>>("dependencies"),
+                        row2.Field<List<string>>("dependencies")
+                    );
+            }
+
+            static bool ListsAreEqual(List<string> list1, List<string> list2)
+            {
+                list1.Sort(); // The order of the list shouldn't matter
+                list2.Sort();
+                foreach (string item1 in list1)
+                {
+                    foreach (string item2 in list2)
+                    {
+                        if (item1 != item2) return false;
+                    }
+                }
+                return true;
+            }
         }
     }
 }
