@@ -6,6 +6,7 @@ using System.Data;
 using System.Collections.Generic;
 using System;
 using System.Linq;
+using Microsoft.CodeAnalysis;
 
 namespace CsPurityTests
 {
@@ -70,7 +71,7 @@ namespace CsPurityTests
         /// caused problems with the code.
         /// </summary>
         [TestMethod]
-        public void HandleImmplicitlytTypedVariables()
+        public void HandleImmplicitlyTypedVariables()
         {
             var file = (@"
                 class C1
@@ -85,8 +86,8 @@ namespace CsPurityTests
             Assert.AreEqual(1, CsPurityAnalyzer.Analyze(file));
         }
 
-        [TestMethod]
-        public void TestBuildLookupTable()
+        //[TestMethod]
+        public void TestBuildLookupTable1()
         {
             var file = (@"
                 class C1
@@ -102,16 +103,68 @@ namespace CsPurityTests
                     }
                 }
             ");
-            DataTable lookupTable = CsPurityAnalyzer.InitializeLookupTable();
-            lookupTable.Rows.Add("foo", new List<string> { "bar" }, Purity.Pure);
-            lookupTable.Rows.Add("bar", new List<string>(), Purity.Pure);
-
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
+            var compilation = CSharpCompilation.Create("HelloWorld")
+                .AddReferences(
+                    MetadataReference.CreateFromFile(
+                        typeof(string).Assembly.Location
+                    )
+                ).AddSyntaxTrees(tree);
+            var model = compilation.GetSemanticModel(tree);
 
-            Assert.IsTrue(TablesAreEqual(lookupTable, CsPurityAnalyzer.BuildLookupTable(root)));
+            LookupTable lookupTable1 = new LookupTable();
+            lookupTable1.BuildLookupTable(root, model);
+
+            LookupTable lookupTable2 = new LookupTable();
+            lookupTable2.AddMethod(GetMethodDeclaration("foo", root));
+            lookupTable2.AddMethod(GetMethodDeclaration("bar", root));
+
+            Assert.IsTrue(TablesAreEqual(lookupTable2.table, lookupTable1.table));
         }
 
+        [TestMethod]
+        public void TestBuildLookupTable2()
+        {
+            var file = (@"
+                class C2
+                {
+                    int foo()
+                    {
+                        C2 c2 = new C2();
+                        return c2.bar();
+                    }
+                }
+
+                class C2
+                {
+                    int bar()
+                    {
+                        return 1;
+                    }
+                }
+            ");
+            var tree = CSharpSyntaxTree.ParseText(file);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+            var compilation = CSharpCompilation.Create("HelloWorld")
+                .AddReferences(
+                    MetadataReference.CreateFromFile(
+                        typeof(string).Assembly.Location
+                    )
+                ).AddSyntaxTrees(tree);
+            var model = compilation.GetSemanticModel(tree);
+
+            LookupTable lookupTable1 = new LookupTable();
+            lookupTable1.BuildLookupTable(root, model);
+
+            LookupTable lookupTable2 = new LookupTable();
+            lookupTable2.AddMethod(GetMethodDeclaration("foo", root));
+            lookupTable2.AddMethod(GetMethodDeclaration("bar", root));
+
+            Assert.IsTrue(TablesAreEqual(lookupTable2.table, lookupTable1.table));
+        }
+
+        //  Rows need to be in the same order in both tables
         static bool TablesAreEqual(DataTable table1, DataTable table2)
         {
             if (table1.Rows.Count != table1.Rows.Count) return false;
@@ -122,29 +175,75 @@ namespace CsPurityTests
             }
             return true;
 
+            // Depenency fields can be in different order
             static bool RowsAreEqual(DataRow row1, DataRow row2)
             {
                 return
-                    row1.Field<string>("identifier") == row2.Field<string>("identifier") &&
+                    row1.Field<MethodDeclarationSyntax>("identifier") == row2.Field<MethodDeclarationSyntax>("identifier") &&
                     row1.Field<Purity>("purity") == row2.Field<Purity>("purity") &&
-                    ListsAreEqual(row1.Field<List<string>>("dependencies"),
-                        row2.Field<List<string>>("dependencies")
-                    );
+                    row1.Field<List<MethodDeclarationSyntax>>("dependencies").SequenceEqual(row2.Field<List<MethodDeclarationSyntax>>("dependencies"));
             }
+        }
 
-            static bool ListsAreEqual(List<string> list1, List<string> list2)
-            {
-                list1.Sort(); // The order of the list shouldn't matter
-                list2.Sort();
-                foreach (string item1 in list1)
+        [TestMethod]
+        public void TestHasMethod()
+        {
+            var file = (@"
+                class C1
                 {
-                    foreach (string item2 in list2)
+                    int foo()
                     {
-                        if (item1 != item2) return false;
+                        return 42;
                     }
                 }
-                return true;
-            }
+            ");
+            var tree = CSharpSyntaxTree.ParseText(file);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+            var methodDeclaration = GetMethodDeclaration("foo", root);
+
+            LookupTable lookupTable = new LookupTable();
+            lookupTable.AddMethod(methodDeclaration);
+
+            Assert.IsTrue(lookupTable.HasMethod(methodDeclaration));
+        }
+
+        [TestMethod]
+        public void TestAddDependency()
+        {
+            var file = (@"
+                class C1
+                {
+                    int foo()
+                    {
+                        return bar();
+                    }
+
+                    int bar()
+                    {
+                        return 42;
+                    }
+                }
+            ");
+            var tree = CSharpSyntaxTree.ParseText(file);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+            var fooDeclaration = GetMethodDeclaration("foo", root);
+            var barDeclaration = GetMethodDeclaration("bar", root);
+
+            LookupTable lookupTable = new LookupTable();
+            lookupTable.AddMethod(fooDeclaration);
+            lookupTable.AddDependency(fooDeclaration, barDeclaration);
+
+            Assert.IsTrue(lookupTable.HasDependency(fooDeclaration, barDeclaration));
+            Console.WriteLine(lookupTable);
+        }
+
+        MethodDeclarationSyntax GetMethodDeclaration(string name, SyntaxNode root)
+        {
+            return root
+                .DescendantNodes()
+                .OfType<MethodDeclarationSyntax>()
+                .Where(m => m.Identifier.Text == name)
+                .Single();
         }
     }
 }

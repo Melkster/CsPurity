@@ -64,65 +64,192 @@ namespace CsPurity
             return result.Any() ? result.Average() : 0; // If input text has no methods purity is 0
         }
 
-        public static DataTable InitializeLookupTable()
-        {
-            DataTable lookupTable = new DataTable();
-            lookupTable.Columns.Add("identifier", typeof(string));
-            lookupTable.Columns.Add("dependencies", typeof(List<string>));
-            lookupTable.Columns.Add("purity", typeof(Purity));
-            return lookupTable;
-        }
-
-        public static DataTable BuildLookupTable(CompilationUnitSyntax root)
-        {
-            DataTable lookupTable = InitializeLookupTable();
-            lookupTable.Rows.Add("foo", new List<string> { "bar" }, Purity.Pure);
-            lookupTable.Rows.Add("bar", new List<string>(), Purity.Pure);
-            return lookupTable;
-        }
-
         static void Main(string[] args)
         {
-            if (!args.Any())
-            {
-                WriteLine("Please provide path to C# file to be analyzed.");
-            }
-            else if (args.Contains("--help")) {
-                WriteLine(@"
-                    Checks purity of C# source file.
+            var text = (@"
+                class C1
+                {
+                    int foo()
+                    {
+                        return bar() + C2.bar();
+                    }
 
-                    -s \t use this flag if input is the C# program as a string, rather than its filepath
-                ");
-            }
-            else if (args.Contains("-s"))
+                    int bar()
+                    {
+                        return 42;
+                    }
+
+                    class C2
+                    {
+                        public static int bar()
+                        {
+                            return 1;
+                        }
+                    }
+                }
+            ");
+            var tree = CSharpSyntaxTree.ParseText(text);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+            var compilation = CSharpCompilation.Create("HelloWorld")
+                .AddReferences(
+                    MetadataReference.CreateFromFile(
+                        typeof(string).Assembly.Location
+                    )
+                ).AddSyntaxTrees(tree);
+            var model = compilation.GetSemanticModel(tree);
+
+            LookupTable lt = new LookupTable();
+            lt.BuildLookupTable(root, model);
+            //WriteLine(lt);
+
+            // --- TODO: uncomment this before merge
+
+            //    if (!args.Any())
+            //    {
+            //        WriteLine("Please provide path to C# file to be analyzed.");
+            //    }
+            //    else if (args.Contains("--help")) {
+            //        WriteLine(@"
+            //            Checks purity of C# source file.
+
+            //            -s \t use this flag if input is the C# program as a string, rather than its filepath
+            //        ");
+            //    }
+            //    else if (args.Contains("-s"))
+            //    {
+            //        //WriteLine("-s was used as flag");
+            //        int textIndex = Array.IndexOf(args, "-s") + 1;
+            //        if (textIndex < args.Length)
+            //        {
+            //            //WriteLine(args[textIndex]);
+            //            string file = args[textIndex];
+            //            WriteLine(Analyze(file));
+            //        }
+            //        else
+            //        {
+            //            WriteLine("Missing program string to be parsed as an argument.");
+            //        }
+            //    }
+            //    else
+            //    {
+            //        try
+            //        {
+            //            string file = System.IO.File.ReadAllText(args[0]);
+            //            WriteLine(Analyze(file));
+            //        } catch (System.IO.FileNotFoundException err)
+            //        {
+            //            WriteLine(err.Message);
+            //        } catch
+            //        {
+            //            WriteLine($"Something went wrong when reading the file {args[0]}");
+            //        }
+            //    }
+        }
+    }
+
+    public class LookupTable
+    {
+        public DataTable table = new DataTable();
+
+        public LookupTable()
+        {
+            table.Columns.Add("identifier", typeof(MethodDeclarationSyntax));
+            table.Columns.Add("dependencies", typeof(List<MethodDeclarationSyntax>));
+            table.Columns.Add("purity", typeof(Purity));
+        }
+
+        public void BuildLookupTable(CompilationUnitSyntax root, SemanticModel model)
+        {
+            var methodDeclarations = root.DescendantNodes().OfType<MethodDeclarationSyntax>();
+            foreach (var methodDeclaration in methodDeclarations)
             {
-                //WriteLine("-s was used as flag");
-                int textIndex = Array.IndexOf(args, "-s") + 1;
-                if (textIndex < args.Length)
+                var methodInvocations = methodDeclaration
+                    .DescendantNodes()
+                    .OfType<InvocationExpressionSyntax>();
+                foreach (var methodInvocation in methodInvocations)
                 {
-                    //WriteLine(args[textIndex]);
-                    string file = args[textIndex];
-                    WriteLine(Analyze(file));
+                    // not sure if this cast from SyntaxNode to MethodDeclarationSyntax always works
+                    MethodDeclarationSyntax methodNode = (MethodDeclarationSyntax)model
+                        .GetSymbolInfo(methodInvocation)
+                        .Symbol
+                        .DeclaringSyntaxReferences
+                        .Single()
+                        .GetSyntax();
+                    // TODO
                 }
-                else
-                {
-                    WriteLine("Missing program string to be parsed as an argument.");
-                }
+                AddMethod(methodDeclaration);
             }
-            else
+        }
+
+        public void AddDependency(MethodDeclarationSyntax methodNode, MethodDeclarationSyntax dependsOnNode)
+        {
+            AddMethod(methodNode);
+            AddMethod(dependsOnNode);
+            DataRow row = table
+                .AsEnumerable()
+                .Where(row => row.Field<MethodDeclarationSyntax>("identifier") == methodNode)
+                .Single();
+            List<MethodDeclarationSyntax> dependencyList = row.Field<List<MethodDeclarationSyntax>>("dependencies");
+            if (!dependencyList.Contains(dependsOnNode))
             {
-                try
-                {
-                    string file = System.IO.File.ReadAllText(args[0]);
-                    WriteLine(Analyze(file));
-                } catch (System.IO.FileNotFoundException err)
-                {
-                    WriteLine(err.Message);
-                } catch
-                {
-                    WriteLine($"Something went wrong when reading the file {args[0]}");
-                }
+                dependencyList.Add(dependsOnNode);
             }
+        }
+
+        public void AddMethod(MethodDeclarationSyntax methodNode)
+        {
+            if (!HasMethod(methodNode))
+            {
+                table.Rows.Add(methodNode, new List<MethodDeclarationSyntax>(), Purity.Pure);
+            }
+        }
+
+        public bool HasMethod(MethodDeclarationSyntax methodNode)
+        {
+            return table
+                .AsEnumerable()
+                .Any(row => row.Field<MethodDeclarationSyntax>("identifier") == methodNode);
+        }
+
+        public bool HasDependency(MethodDeclarationSyntax methodNode, MethodDeclarationSyntax dependsOnNode)
+        {
+            return table
+                .AsEnumerable()
+                .Any(row =>
+                    row.Field<MethodDeclarationSyntax>("identifier") == methodNode &&
+                    row.Field<List<MethodDeclarationSyntax>>("dependencies").Contains(dependsOnNode)
+                );
+        }
+
+        public override string ToString()
+        {
+            string result = "";
+            foreach (var row in table.AsEnumerable())
+            {
+                foreach (var item in row.ItemArray)
+                {
+                    if (item is MethodDeclarationSyntax)
+                    {
+                        result += ((MethodDeclarationSyntax)item).Identifier;
+                    }
+                    else if (item is List<MethodDeclarationSyntax>)
+                    {
+                        var dependencyList = (List<MethodDeclarationSyntax>)item;
+                        foreach (var dependency in dependencyList)
+                        {
+                            result += dependency.Identifier;
+                        }
+                        result += ", ";
+                    }
+                    else
+                    {
+                        result += item;
+                    }
+                    result += " | ";
+                }
+                result += "\n";
+            }
+            return result;
         }
     }
 }
