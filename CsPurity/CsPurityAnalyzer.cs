@@ -98,9 +98,9 @@ namespace CsPurity
                 ).AddSyntaxTrees(tree);
             var model = compilation.GetSemanticModel(tree);
 
-            LookupTable lt = new LookupTable();
-            lt.BuildLookupTable(root, model);
-            //WriteLine(lt);
+            LookupTable lt = new LookupTable(root, model);
+            lt.BuildLookupTable();
+            WriteLine(lt);
 
             // --- TODO: uncomment this before merge
 
@@ -150,15 +150,20 @@ namespace CsPurity
     public class LookupTable
     {
         public DataTable table = new DataTable();
+        readonly CompilationUnitSyntax  root;
+        readonly SemanticModel model;
 
-        public LookupTable()
+        public LookupTable(CompilationUnitSyntax root, SemanticModel model)
         {
+            this.root = root;
+            this.model = model;
+
             table.Columns.Add("identifier", typeof(MethodDeclarationSyntax));
             table.Columns.Add("dependencies", typeof(List<MethodDeclarationSyntax>));
             table.Columns.Add("purity", typeof(Purity));
         }
 
-        public void BuildLookupTable(CompilationUnitSyntax root, SemanticModel model)
+        public void BuildLookupTable()
         {
             var methodDeclarations = root.DescendantNodes().OfType<MethodDeclarationSyntax>();
             foreach (var methodDeclaration in methodDeclarations)

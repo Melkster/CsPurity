@@ -113,10 +113,10 @@ namespace CsPurityTests
                 ).AddSyntaxTrees(tree);
             var model = compilation.GetSemanticModel(tree);
 
-            LookupTable lookupTable1 = new LookupTable();
-            lookupTable1.BuildLookupTable(root, model);
+            LookupTable lookupTable1 = new LookupTable(root, model);
+            lookupTable1.BuildLookupTable();
 
-            LookupTable lookupTable2 = new LookupTable();
+            LookupTable lookupTable2 = new LookupTable(null, null);
             lookupTable2.AddMethod(GetMethodDeclaration("foo", root));
             lookupTable2.AddMethod(GetMethodDeclaration("bar", root));
 
@@ -154,17 +154,17 @@ namespace CsPurityTests
                 ).AddSyntaxTrees(tree);
             var model = compilation.GetSemanticModel(tree);
 
-            LookupTable lookupTable1 = new LookupTable();
-            lookupTable1.BuildLookupTable(root, model);
+            LookupTable lookupTable1 = new LookupTable(root, model);
+            lookupTable1.BuildLookupTable();
 
-            LookupTable lookupTable2 = new LookupTable();
+            LookupTable lookupTable2 = new LookupTable(null, null);
             lookupTable2.AddMethod(GetMethodDeclaration("foo", root));
             lookupTable2.AddMethod(GetMethodDeclaration("bar", root));
 
             Assert.IsTrue(TablesAreEqual(lookupTable2.table, lookupTable1.table));
         }
 
-        //  Rows need to be in the same order in both tables
+        // Rows need to be in the same order in both tables
         static bool TablesAreEqual(DataTable table1, DataTable table2)
         {
             if (table1.Rows.Count != table1.Rows.Count) return false;
@@ -201,7 +201,7 @@ namespace CsPurityTests
             var root = (CompilationUnitSyntax)tree.GetRoot();
             var methodDeclaration = GetMethodDeclaration("foo", root);
 
-            LookupTable lookupTable = new LookupTable();
+            LookupTable lookupTable = new LookupTable(null, null);
             lookupTable.AddMethod(methodDeclaration);
 
             Assert.IsTrue(lookupTable.HasMethod(methodDeclaration));
@@ -229,7 +229,7 @@ namespace CsPurityTests
             var fooDeclaration = GetMethodDeclaration("foo", root);
             var barDeclaration = GetMethodDeclaration("bar", root);
 
-            LookupTable lookupTable = new LookupTable();
+            LookupTable lookupTable = new LookupTable(null, null);
             lookupTable.AddMethod(fooDeclaration);
             lookupTable.AddDependency(fooDeclaration, barDeclaration);
 
