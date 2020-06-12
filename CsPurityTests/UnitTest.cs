@@ -8,6 +8,8 @@ using System;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 
+using static System.Console;
+
 namespace CsPurityTests
 {
     [TestClass]
@@ -235,6 +237,42 @@ namespace CsPurityTests
 
             Assert.IsTrue(lookupTable.HasDependency(fooDeclaration, barDeclaration));
             Console.WriteLine(lookupTable);
+        }
+
+        [TestMethod]
+        public void TestGetDependencies()
+        {
+            var file = (@"
+                class C1
+                {
+                    int foo()
+                    {
+                        return bar() + faz() + buz();
+                    }
+
+                    int bar() {
+                        far();
+                    }
+                }
+            ");
+            var tree = CSharpSyntaxTree.ParseText(file);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+            var model = CsPurityAnalyzer.GetSemanticModel(tree);
+
+
+            var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
+            var lt = new LookupTable(root, model);
+            var fooDependencies = lt.GetDependencies(fooDeclaration);
+            foreach (var dep in fooDependencies)
+            {
+                WriteLine(dep);
+            }
+
+            //var invocations = root.DescendantNodes().OfType<InvocationExpressionSyntax>();
+            //foreach (var invocation in invocations)
+            //{
+            //    WriteLine(invocation);
+            //}
         }
 
         MethodDeclarationSyntax GetMethodDeclaration(string name, SyntaxNode root)

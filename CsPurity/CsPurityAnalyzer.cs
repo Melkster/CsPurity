@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Data;
 
 using static System.Console;
+using System.Linq.Expressions;
 
 namespace CsPurity
 {
@@ -62,6 +63,19 @@ namespace CsPurity
             }
 
             return result.Any() ? result.Average() : 0; // If input text has no methods purity is 0
+        }
+
+        public static SemanticModel GetSemanticModel(SyntaxTree tree)
+        {
+            var model = CSharpCompilation.Create("assemblyName")
+                .AddReferences(
+                    MetadataReference.CreateFromFile(
+                        typeof(string).Assembly.Location
+                    )
+                 )
+                .AddSyntaxTrees(tree)
+                .GetSemanticModel(tree);
+            return model;
         }
 
         static void Main(string[] args)
@@ -173,7 +187,6 @@ namespace CsPurity
                     .OfType<InvocationExpressionSyntax>();
                 foreach (var methodInvocation in methodInvocations)
                 {
-                    // not sure if this cast from SyntaxNode to MethodDeclarationSyntax always works
                     MethodDeclarationSyntax methodNode = (MethodDeclarationSyntax)model
                         .GetSymbolInfo(methodInvocation)
                         .Symbol
@@ -184,6 +197,30 @@ namespace CsPurity
                 }
                 AddMethod(methodDeclaration);
             }
+        }
+
+        public MethodDeclarationSyntax GetMethodDeclaration(InvocationExpressionSyntax methodInvocation)
+        {
+            // not sure if this cast from SyntaxNode to MethodDeclarationSyntax always works
+            return (MethodDeclarationSyntax)model
+                .GetSymbolInfo(methodInvocation)
+                .Symbol
+                .DeclaringSyntaxReferences
+                .Single()
+                .GetSyntax();
+        }
+
+        public List<InvocationExpressionSyntax> GetDependencies(MethodDeclarationSyntax methodDeclaration)
+        {
+            List<InvocationExpressionSyntax> results = new List<InvocationExpressionSyntax>();
+
+            var methodInvocations = methodDeclaration.DescendantNodes().OfType<InvocationExpressionSyntax>();
+            if (!methodInvocations.Any()) return results;
+            foreach (var mi in methodInvocations)
+            {
+                results.Concat(GetDependencies(GetMethodDeclaration(mi)));
+            }
+            return results;
         }
 
         public void AddDependency(MethodDeclarationSyntax methodNode, MethodDeclarationSyntax dependsOnNode)
