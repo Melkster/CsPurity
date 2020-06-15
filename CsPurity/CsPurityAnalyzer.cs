@@ -218,6 +218,7 @@ namespace CsPurity
             if (!methodInvocations.Any()) return results;
             foreach (var mi in methodInvocations)
             {
+                results.Add(mi);
                 results.Concat(GetDependencies(GetMethodDeclaration(mi)));
             }
             return results;

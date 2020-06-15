@@ -177,14 +177,26 @@ namespace CsPurityTests
             }
             return true;
 
-            // Depenency fields can be in different order
+            // Dependency fields can be in different order
             static bool RowsAreEqual(DataRow row1, DataRow row2)
             {
                 return
                     row1.Field<MethodDeclarationSyntax>("identifier") == row2.Field<MethodDeclarationSyntax>("identifier") &&
                     row1.Field<Purity>("purity") == row2.Field<Purity>("purity") &&
-                    row1.Field<List<MethodDeclarationSyntax>>("dependencies").SequenceEqual(row2.Field<List<MethodDeclarationSyntax>>("dependencies"));
+                    HaveEqualElements(
+                        row1.Field<List<MethodDeclarationSyntax>>("dependencies"),
+                        row2.Field<List<MethodDeclarationSyntax>>("dependencies")
+                    );
             }
+        }
+
+
+        static bool HaveEqualElements(IEnumerable<Object> list1, IEnumerable<Object> list2)
+        {
+            return Enumerable.SequenceEqual(
+                list1.OrderBy(t => t),
+                list2.OrderBy(t => t)
+            );
         }
 
         [TestMethod]
@@ -247,11 +259,11 @@ namespace CsPurityTests
                 {
                     int foo()
                     {
-                        return bar() + faz() + buz();
+                        return bar();
                     }
 
                     int bar() {
-                        far();
+                        return ""bar"";
                     }
                 }
             ");
@@ -259,20 +271,18 @@ namespace CsPurityTests
             var root = (CompilationUnitSyntax)tree.GetRoot();
             var model = CsPurityAnalyzer.GetSemanticModel(tree);
 
-
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
             var fooDependencies = lt.GetDependencies(fooDeclaration);
-            foreach (var dep in fooDependencies)
-            {
-                WriteLine(dep);
-            }
+            var expectedResult = fooDeclaration.DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
+            var expectedResultList = new List<InvocationExpressionSyntax> { expectedResult };
 
-            //var invocations = root.DescendantNodes().OfType<InvocationExpressionSyntax>();
-            //foreach (var invocation in invocations)
-            //{
-            //    WriteLine(invocation);
-            //}
+            Assert.IsTrue(
+                HaveEqualElements(
+                    fooDependencies,
+                    expectedResultList
+                )
+            );
         }
 
         MethodDeclarationSyntax GetMethodDeclaration(string name, SyntaxNode root)
