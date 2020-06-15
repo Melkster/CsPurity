@@ -210,16 +210,17 @@ namespace CsPurity
                 .GetSyntax();
         }
 
-        public List<InvocationExpressionSyntax> GetDependencies(MethodDeclarationSyntax methodDeclaration)
+        public List<MethodDeclarationSyntax> GetDependencies(MethodDeclarationSyntax methodDeclaration)
         {
-            List<InvocationExpressionSyntax> results = new List<InvocationExpressionSyntax>();
+            List<MethodDeclarationSyntax> results = new List<MethodDeclarationSyntax>();
 
             var methodInvocations = methodDeclaration.DescendantNodes().OfType<InvocationExpressionSyntax>();
             if (!methodInvocations.Any()) return results;
             foreach (var mi in methodInvocations)
             {
-                results.Add(mi);
-                results.Concat(GetDependencies(GetMethodDeclaration(mi)));
+                MethodDeclarationSyntax miDeclaration = GetMethodDeclaration(mi);
+                results.Add(miDeclaration);
+                results.Concat(GetDependencies(miDeclaration));
             }
             return results;
         }
