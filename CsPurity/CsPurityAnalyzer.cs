@@ -7,7 +7,6 @@ using System.Collections.Generic;
 using System.Data;
 
 using static System.Console;
-using System.Linq.Expressions;
 
 namespace CsPurity
 {
@@ -80,84 +79,49 @@ namespace CsPurity
 
         static void Main(string[] args)
         {
-            var text = (@"
-                class C1
+            if (!args.Any())
+            {
+                WriteLine("Please provide path to C# file to be analyzed.");
+            }
+            else if (args.Contains("--help"))
+            {
+                WriteLine(@"
+                    Checks purity of C# source file.
+
+                    -s \t use this flag if input is the C# program as a string, rather than its filepath
+                ");
+            }
+            else if (args.Contains("-s"))
+            {
+                //WriteLine("-s was used as flag");
+                int textIndex = Array.IndexOf(args, "-s") + 1;
+                if (textIndex < args.Length)
                 {
-                    int foo()
-                    {
-                        return bar() + C2.bar();
-                    }
-
-                    int bar()
-                    {
-                        return 42;
-                    }
-
-                    class C2
-                    {
-                        public static int bar()
-                        {
-                            return 1;
-                        }
-                    }
+                    //WriteLine(args[textIndex]);
+                    string file = args[textIndex];
+                    WriteLine(Analyze(file));
                 }
-            ");
-            var tree = CSharpSyntaxTree.ParseText(text);
-            var root = (CompilationUnitSyntax)tree.GetRoot();
-            var compilation = CSharpCompilation.Create("HelloWorld")
-                .AddReferences(
-                    MetadataReference.CreateFromFile(
-                        typeof(string).Assembly.Location
-                    )
-                ).AddSyntaxTrees(tree);
-            var model = compilation.GetSemanticModel(tree);
-
-            LookupTable lt = new LookupTable(root, model);
-            lt.BuildLookupTable();
-            WriteLine(lt);
-
-            // --- TODO: uncomment this before merge
-
-            //    if (!args.Any())
-            //    {
-            //        WriteLine("Please provide path to C# file to be analyzed.");
-            //    }
-            //    else if (args.Contains("--help")) {
-            //        WriteLine(@"
-            //            Checks purity of C# source file.
-
-            //            -s \t use this flag if input is the C# program as a string, rather than its filepath
-            //        ");
-            //    }
-            //    else if (args.Contains("-s"))
-            //    {
-            //        //WriteLine("-s was used as flag");
-            //        int textIndex = Array.IndexOf(args, "-s") + 1;
-            //        if (textIndex < args.Length)
-            //        {
-            //            //WriteLine(args[textIndex]);
-            //            string file = args[textIndex];
-            //            WriteLine(Analyze(file));
-            //        }
-            //        else
-            //        {
-            //            WriteLine("Missing program string to be parsed as an argument.");
-            //        }
-            //    }
-            //    else
-            //    {
-            //        try
-            //        {
-            //            string file = System.IO.File.ReadAllText(args[0]);
-            //            WriteLine(Analyze(file));
-            //        } catch (System.IO.FileNotFoundException err)
-            //        {
-            //            WriteLine(err.Message);
-            //        } catch
-            //        {
-            //            WriteLine($"Something went wrong when reading the file {args[0]}");
-            //        }
-            //    }
+                else
+                {
+                    WriteLine("Missing program string to be parsed as an argument.");
+                }
+            }
+            else
+            {
+                try
+                {
+                    string file = System.IO.File.ReadAllText(args[0]);
+                    WriteLine(Analyze(file));
+                }
+                catch (System.IO.FileNotFoundException err)
+                {
+                    WriteLine(err.Message);
+                }
+                catch
+                {
+                    WriteLine($"Something went wrong when reading the file {args[0]}");
+                }
+            }
         }
     }
 
