@@ -88,7 +88,7 @@ namespace CsPurityTests
             Assert.AreEqual(1, CsPurityAnalyzer.Analyze(file));
         }
 
-        //[TestMethod]
+        [TestMethod]
         public void TestBuildLookupTable1()
         {
             var file = (@"
@@ -107,13 +107,7 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var compilation = CSharpCompilation.Create("HelloWorld")
-                .AddReferences(
-                    MetadataReference.CreateFromFile(
-                        typeof(string).Assembly.Location
-                    )
-                ).AddSyntaxTrees(tree);
-            var model = compilation.GetSemanticModel(tree);
+            var model = CsPurityAnalyzer.GetSemanticModel(tree);
 
             LookupTable lookupTable1 = new LookupTable(root, model);
             lookupTable1.BuildLookupTable();
@@ -121,6 +115,10 @@ namespace CsPurityTests
             LookupTable lookupTable2 = new LookupTable(null, null);
             lookupTable2.AddMethod(GetMethodDeclaration("foo", root));
             lookupTable2.AddMethod(GetMethodDeclaration("bar", root));
+            lookupTable2.AddDependency(
+                GetMethodDeclaration("foo", root),
+                GetMethodDeclaration("bar", root)
+            );
 
             Assert.IsTrue(TablesAreEqual(lookupTable2.table, lookupTable1.table));
         }
@@ -148,13 +146,7 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var compilation = CSharpCompilation.Create("HelloWorld")
-                .AddReferences(
-                    MetadataReference.CreateFromFile(
-                        typeof(string).Assembly.Location
-                    )
-                ).AddSyntaxTrees(tree);
-            var model = compilation.GetSemanticModel(tree);
+            var model = CsPurityAnalyzer.GetSemanticModel(tree);
 
             LookupTable lookupTable1 = new LookupTable(root, model);
             lookupTable1.BuildLookupTable();
@@ -162,6 +154,10 @@ namespace CsPurityTests
             LookupTable lookupTable2 = new LookupTable(null, null);
             lookupTable2.AddMethod(GetMethodDeclaration("foo", root));
             lookupTable2.AddMethod(GetMethodDeclaration("bar", root));
+            lookupTable2.AddDependency(
+                GetMethodDeclaration("foo", root),
+                GetMethodDeclaration("bar", root)
+            );
 
             Assert.IsTrue(TablesAreEqual(lookupTable2.table, lookupTable1.table));
         }
@@ -215,7 +211,6 @@ namespace CsPurityTests
             lookupTable.AddDependency(fooDeclaration, barDeclaration);
 
             Assert.IsTrue(lookupTable.HasDependency(fooDeclaration, barDeclaration));
-            Console.WriteLine(lookupTable);
         }
 
         [TestMethod]
@@ -435,6 +430,52 @@ namespace CsPurityTests
         }
 
         [TestMethod]
+        public void TestGettingDependenciesWithSameNames()
+        {
+            var file = (@"
+                class C1
+                {
+                    string foo()
+                    {
+                        return C2.bar() + bar();
+                    }
+
+                    string bar()
+                    {
+                        return ""bar"";
+                    }
+                }
+
+                class C2
+                {
+                    public static string bar()
+                    {
+                        return ""bar"";
+                    }
+                }
+            ");
+            var tree = CSharpSyntaxTree.ParseText(file);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+            var model = CsPurityAnalyzer.GetSemanticModel(tree);
+
+            var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
+            var lt = new LookupTable(root, model);
+            var fooDependencies = lt.GetDependencies(fooDeclaration);
+            var expectedResults = root
+                .DescendantNodes()
+                .OfType<MethodDeclarationSyntax>()
+                .Where(m => m.Identifier.ToString() != "foo")
+                .ToList();
+
+            Assert.IsTrue(
+                HaveEqualElements(
+                    fooDependencies,
+                    expectedResults
+                )
+            );
+        }
+
+        [TestMethod]
         public void TestGettingMultipleIdenticalDependencies()
         {
             var file = (@"
@@ -476,6 +517,8 @@ namespace CsPurityTests
                 )
             );
         }
+
+        // TODO: test dependencies on two methods with the same name
 
         [TestMethod]
         public void TestGettingBuiltInMethod()

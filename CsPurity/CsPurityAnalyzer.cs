@@ -182,20 +182,11 @@ namespace CsPurity
             var methodDeclarations = root.DescendantNodes().OfType<MethodDeclarationSyntax>();
             foreach (var methodDeclaration in methodDeclarations)
             {
-                var methodInvocations = methodDeclaration
-                    .DescendantNodes()
-                    .OfType<InvocationExpressionSyntax>();
-                foreach (var methodInvocation in methodInvocations)
-                {
-                    MethodDeclarationSyntax methodNode = (MethodDeclarationSyntax)model
-                        .GetSymbolInfo(methodInvocation)
-                        .Symbol
-                        .DeclaringSyntaxReferences
-                        .Single()
-                        .GetSyntax();
-                    // TODO
-                }
                 AddMethod(methodDeclaration);
+                var dependencies = GetDependencies(methodDeclaration);
+                foreach (var dependency in dependencies) {
+                    AddDependency(methodDeclaration, dependency);
+                }
             }
         }
 
@@ -212,8 +203,6 @@ namespace CsPurity
                 ?.DeclaringSyntaxReferences
                 .Single()
                 .GetSyntax();
-            // TODO: handle case where methodInvocation is for instance
-            // Console.Writeline(), i.e. when .Symbol returns null
         }
 
         /// <summary>
@@ -236,7 +225,9 @@ namespace CsPurity
                 return results;    // add `null` to results as an indication
             };
 
-            var methodInvocations = methodDeclaration.DescendantNodes().OfType<InvocationExpressionSyntax>();
+            var methodInvocations = methodDeclaration
+                .DescendantNodes()
+                .OfType<InvocationExpressionSyntax>();
             if (!methodInvocations.Any()) return results;
             foreach (var mi in methodInvocations)
             {
@@ -247,6 +238,12 @@ namespace CsPurity
             return results;
         }
 
+
+        /// <summary>
+        /// Adds a dependency for a method to the lookup table
+        /// </summary>
+        /// <param name="methodNode">The method to add a dependency to</param>
+        /// <param name="dependsOnNode">The method that methodNode depends on</param>
         public void AddDependency(MethodDeclarationSyntax methodNode, MethodDeclarationSyntax dependsOnNode)
         {
             AddMethod(methodNode);
@@ -262,6 +259,21 @@ namespace CsPurity
             }
         }
 
+        public bool HasDependency(MethodDeclarationSyntax methodNode, MethodDeclarationSyntax dependsOnNode)
+        {
+            return table
+                .AsEnumerable()
+                .Any(row =>
+                    row.Field<MethodDeclarationSyntax>("identifier") == methodNode &&
+                    row.Field<List<MethodDeclarationSyntax>>("dependencies").Contains(dependsOnNode)
+                );
+        }
+
+        /// <summary>
+        /// Adds method to the lookup table if it is not already in the lookup
+        /// table
+        /// </summary>
+        /// <param name="methodNode">The method to add</param>
         public void AddMethod(MethodDeclarationSyntax methodNode)
         {
             if (!HasMethod(methodNode))
@@ -275,16 +287,6 @@ namespace CsPurity
             return table
                 .AsEnumerable()
                 .Any(row => row.Field<MethodDeclarationSyntax>("identifier") == methodNode);
-        }
-
-        public bool HasDependency(MethodDeclarationSyntax methodNode, MethodDeclarationSyntax dependsOnNode)
-        {
-            return table
-                .AsEnumerable()
-                .Any(row =>
-                    row.Field<MethodDeclarationSyntax>("identifier") == methodNode &&
-                    row.Field<List<MethodDeclarationSyntax>>("dependencies").Contains(dependsOnNode)
-                );
         }
 
         public override string ToString()
