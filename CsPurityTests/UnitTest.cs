@@ -287,6 +287,7 @@ namespace CsPurityTests
                 .OfType<MethodDeclarationSyntax>()
                 .Where(m => m.Identifier.ToString() != "foo")
                 .ToList();
+
             Assert.IsTrue(
                 HaveEqualElements(
                     fooDependencies,
@@ -295,6 +296,145 @@ namespace CsPurityTests
             );
         }
 
+        [TestMethod]
+        public void TestGettingNestedDependencies()
+        {
+            var file = (@"
+                class C1
+                {
+                    string foo()
+                    {
+                        return bar();
+                    }
+
+                    string bar()
+                    {
+                        return baz();
+                    }
+
+                    void baz()
+                    {
+                        return ""baz"";
+                    }
+                }
+            ");
+            var tree = CSharpSyntaxTree.ParseText(file);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+            var model = CsPurityAnalyzer.GetSemanticModel(tree);
+
+            var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
+            var lt = new LookupTable(root, model);
+            var fooDependencies = lt.GetDependencies(fooDeclaration);
+            var expectedResults = root
+                .DescendantNodes()
+                .OfType<MethodDeclarationSyntax>()
+                .Where(m => m.Identifier.ToString() != "foo")
+                .ToList();
+
+            Assert.IsTrue(
+                HaveEqualElements(
+                    fooDependencies,
+                    expectedResults
+                )
+            );
+        }
+
+        [TestMethod]
+        public void TestGettingMultipleNestedDependencies()
+        {
+            var file = (@"
+                class C1
+                {
+                    string foo()
+                    {
+                        return bar() + baz();
+                    }
+
+                    string bar()
+                    {
+                        return far() + faz();
+                    }
+
+                    void baz()
+                    {
+                        return ""baz"";
+                    }
+
+                    void far()
+                    {
+                        return ""far"";
+                    }
+
+                    void faz()
+                    {
+                        return ""faz"";
+                    }
+                }
+            ");
+            var tree = CSharpSyntaxTree.ParseText(file);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+            var model = CsPurityAnalyzer.GetSemanticModel(tree);
+
+            var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
+            var lt = new LookupTable(root, model);
+            var fooDependencies = lt.GetDependencies(fooDeclaration);
+            var expectedResults = root
+                .DescendantNodes()
+                .OfType<MethodDeclarationSyntax>()
+                .Where(m => m.Identifier.ToString() != "foo")
+                .ToList();
+
+            Assert.IsTrue(
+                HaveEqualElements(
+                    fooDependencies,
+                    expectedResults
+                )
+            );
+        }
+
+        [TestMethod]
+        public void TestGettingMethodDependency()
+        {
+            var file = (@"
+                class C1
+                {
+                    string foo()
+                    {
+                        C2 c2 = new C2();
+                        return c2.bar();
+                    }
+                }
+
+                class C2
+                {
+                    public string bar()
+                    {
+                        return ""bar"";
+                    }
+                }
+            ");
+            var tree = CSharpSyntaxTree.ParseText(file);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+            var model = CsPurityAnalyzer.GetSemanticModel(tree);
+
+            var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
+            var lt = new LookupTable(root, model);
+            var fooDependencies = lt.GetDependencies(fooDeclaration);
+            var expectedResults = root
+                .DescendantNodes()
+                .OfType<MethodDeclarationSyntax>()
+                .Where(m => m.Identifier.ToString() != "foo")
+                .ToList();
+
+            Assert.IsTrue(
+                HaveEqualElements(
+                    fooDependencies,
+                    expectedResults
+                )
+            );
+        }
+
+        // TODO: test multiple invocations of the same method should only add one dependency
 
         [TestMethod]
         public void TestGettingBuiltInMethod()

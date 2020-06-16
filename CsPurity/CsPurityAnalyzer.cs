@@ -216,16 +216,16 @@ namespace CsPurity
             // Console.Writeline(), i.e. when .Symbol returns null
         }
 
-
         /// <summary>
-        /// Returns a list of all methods that a method depends on
+        /// Recursively computes a list of all unique methods that a method
+        /// depends on
         /// </summary>
         /// <param name="methodDeclaration">The method</param>
         /// <returns>
-        ///     A list of all MethodDeclarationSyntaxes that <paramref
-        ///     name="methodDeclaration"/> depends on. If any method's
-        ///     implementation was not found, that method is represented as
-        ///     null in the list.
+        /// A list of all *unique* MethodDeclarationSyntaxes that <paramref
+        /// name="methodDeclaration"/> depends on. If any method's
+        /// implementation was not found, that method is represented as null in
+        /// the list.
         /// </returns>
         public List<MethodDeclarationSyntax> GetDependencies(MethodDeclarationSyntax methodDeclaration)
         {
@@ -242,7 +242,7 @@ namespace CsPurity
             {
                 MethodDeclarationSyntax miDeclaration = GetMethodDeclaration(mi);
                 results.Add(miDeclaration);
-                results.Concat(GetDependencies(miDeclaration));
+                results = results.Union(GetDependencies(miDeclaration)).ToList();
             }
             return results;
         }
