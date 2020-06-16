@@ -208,6 +208,8 @@ namespace CsPurity
                 .DeclaringSyntaxReferences
                 .Single()
                 .GetSyntax();
+            // TODO: handle case where methodInvocation is for instance
+            // Console.Writeline(), i.e. when .Symbol returns null
         }
 
         public List<MethodDeclarationSyntax> GetDependencies(MethodDeclarationSyntax methodDeclaration)

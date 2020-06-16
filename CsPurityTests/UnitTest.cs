@@ -166,39 +166,6 @@ namespace CsPurityTests
             Assert.IsTrue(TablesAreEqual(lookupTable2.table, lookupTable1.table));
         }
 
-        // Rows need to be in the same order in both tables
-        static bool TablesAreEqual(DataTable table1, DataTable table2)
-        {
-            if (table1.Rows.Count != table1.Rows.Count) return false;
-
-            for (int i = 0; i < table1.Rows.Count; i++)
-            {
-                if (!RowsAreEqual(table1.Rows[i], table2.Rows[i])) return false;
-            }
-            return true;
-
-            // Dependency fields can be in different order
-            static bool RowsAreEqual(DataRow row1, DataRow row2)
-            {
-                return
-                    row1.Field<MethodDeclarationSyntax>("identifier") == row2.Field<MethodDeclarationSyntax>("identifier") &&
-                    row1.Field<Purity>("purity") == row2.Field<Purity>("purity") &&
-                    HaveEqualElements(
-                        row1.Field<List<MethodDeclarationSyntax>>("dependencies"),
-                        row2.Field<List<MethodDeclarationSyntax>>("dependencies")
-                    );
-            }
-        }
-
-
-        static bool HaveEqualElements(IEnumerable<Object> list1, IEnumerable<Object> list2)
-        {
-            return Enumerable.SequenceEqual(
-                list1.OrderBy(t => t),
-                list2.OrderBy(t => t)
-            );
-        }
-
         [TestMethod]
         public void TestHasMethod()
         {
@@ -285,6 +252,50 @@ namespace CsPurityTests
             );
         }
 
+        [TestMethod]
+        public void TestGettingMultipleDependencies()
+        {
+            var file = (@"
+                class C1
+                {
+                    string foo()
+                    {
+                        baz();
+                        return bar();
+                    }
+
+                    string bar()
+                    {
+                        return ""bar"";
+                    }
+
+                    void baz()
+                    {
+                        return ""baz"";
+                    }
+                }
+            ");
+            var tree = CSharpSyntaxTree.ParseText(file);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+            var model = CsPurityAnalyzer.GetSemanticModel(tree);
+
+            var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
+            var lt = new LookupTable(root, model);
+            var fooDependencies = lt.GetDependencies(fooDeclaration);
+            var expectedResults = root
+                .DescendantNodes()
+                .OfType<MethodDeclarationSyntax>()
+                .Where(m => m.Identifier.ToString() != "foo")
+                .ToList();
+
+            Assert.IsTrue(
+                HaveEqualElements(
+                    fooDependencies,
+                    expectedResults
+                )
+            );
+        }
+
         MethodDeclarationSyntax GetMethodDeclaration(string name, SyntaxNode root)
         {
             return root
@@ -292,6 +303,40 @@ namespace CsPurityTests
                 .OfType<MethodDeclarationSyntax>()
                 .Where(m => m.Identifier.Text == name)
                 .Single();
+        }
+
+        // Rows need to be in the same order in both tables
+        static bool TablesAreEqual(DataTable table1, DataTable table2)
+        {
+            if (table1.Rows.Count != table1.Rows.Count) return false;
+
+            for (int i = 0; i < table1.Rows.Count; i++)
+            {
+                if (!RowsAreEqual(table1.Rows[i], table2.Rows[i])) return false;
+            }
+            return true;
+
+            // Dependency fields can be in different order
+            static bool RowsAreEqual(DataRow row1, DataRow row2)
+            {
+                return
+                    row1.Field<MethodDeclarationSyntax>("identifier") == row2.Field<MethodDeclarationSyntax>("identifier") &&
+                    row1.Field<Purity>("purity") == row2.Field<Purity>("purity") &&
+                    HaveEqualElements(
+                        row1.Field<List<MethodDeclarationSyntax>>("dependencies"),
+                        row2.Field<List<MethodDeclarationSyntax>>("dependencies")
+                    );
+            }
+        }
+
+        static bool HaveEqualElements(IEnumerable<Object> list1, IEnumerable<Object> list2)
+        {
+            if (list1.Count() != list2.Count()) return false;
+            foreach (var item in list1)
+            {
+                if (!list2.Contains(item)) return false;
+            }
+            return true;
         }
     }
 }
