@@ -287,11 +287,40 @@ namespace CsPurityTests
                 .OfType<MethodDeclarationSyntax>()
                 .Where(m => m.Identifier.ToString() != "foo")
                 .ToList();
-
             Assert.IsTrue(
                 HaveEqualElements(
                     fooDependencies,
                     expectedResults
+                )
+            );
+        }
+
+
+        [TestMethod]
+        public void TestGettingBuiltInMethod()
+        {
+            var file = (@"
+                class C1
+                {
+                    int foo()
+                    {
+                        Console.WriteLine();
+                    }
+                }
+            ");
+            var tree = CSharpSyntaxTree.ParseText(file);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+            var model = CsPurityAnalyzer.GetSemanticModel(tree);
+
+            var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
+            var lt = new LookupTable(root, model);
+            var fooDependencies = lt.GetDependencies(fooDeclaration);
+            var expectedResultList = new List<MethodDeclarationSyntax> { null };
+
+            Assert.IsTrue(
+                HaveEqualElements(
+                    fooDependencies,
+                    expectedResultList
                 )
             );
         }

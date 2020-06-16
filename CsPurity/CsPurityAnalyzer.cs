@@ -199,22 +199,42 @@ namespace CsPurity
             }
         }
 
+        /// <summary>
+        /// Returns the declaration of the method invoced by `methodInvocation`
+        /// If no declaration is found, returns `null`
+        /// </summary>
         public MethodDeclarationSyntax GetMethodDeclaration(InvocationExpressionSyntax methodInvocation)
         {
             // not sure if this cast from SyntaxNode to MethodDeclarationSyntax always works
             return (MethodDeclarationSyntax)model
                 .GetSymbolInfo(methodInvocation)
                 .Symbol
-                .DeclaringSyntaxReferences
+                ?.DeclaringSyntaxReferences
                 .Single()
                 .GetSyntax();
             // TODO: handle case where methodInvocation is for instance
             // Console.Writeline(), i.e. when .Symbol returns null
         }
 
+
+        /// <summary>
+        /// Returns a list of all methods that a method depends on
+        /// </summary>
+        /// <param name="methodDeclaration">The method</param>
+        /// <returns>
+        ///     A list of all MethodDeclarationSyntaxes that <paramref
+        ///     name="methodDeclaration"/> depends on. If any method's
+        ///     implementation was not found, that method is represented as
+        ///     null in the list.
+        /// </returns>
         public List<MethodDeclarationSyntax> GetDependencies(MethodDeclarationSyntax methodDeclaration)
         {
             List<MethodDeclarationSyntax> results = new List<MethodDeclarationSyntax>();
+            if (methodDeclaration == null)
+            {
+                results.Add(null); // if no method implementaiton was found,
+                return results;    // add `null` to results as an indication
+            };
 
             var methodInvocations = methodDeclaration.DescendantNodes().OfType<InvocationExpressionSyntax>();
             if (!methodInvocations.Any()) return results;
