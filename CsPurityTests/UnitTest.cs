@@ -434,7 +434,48 @@ namespace CsPurityTests
             );
         }
 
-        // TODO: test multiple invocations of the same method should only add one dependency
+        [TestMethod]
+        public void TestGettingMultipleIdenticalDependencies()
+        {
+            var file = (@"
+                class C1
+                {
+                    string foo()
+                    {
+                        return bar() + baz();
+                    }
+
+                    string bar()
+                    {
+                        return ""bar"" + baz() + baz();
+                    }
+
+                    void baz()
+                    {
+                        return ""baz"";
+                    }
+                }
+            ");
+            var tree = CSharpSyntaxTree.ParseText(file);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+            var model = CsPurityAnalyzer.GetSemanticModel(tree);
+
+            var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
+            var lt = new LookupTable(root, model);
+            var fooDependencies = lt.GetDependencies(fooDeclaration);
+            var expectedResults = root
+                .DescendantNodes()
+                .OfType<MethodDeclarationSyntax>()
+                .Where(m => m.Identifier.ToString() != "foo")
+                .ToList();
+
+            Assert.IsTrue(
+                HaveEqualElements(
+                    fooDependencies,
+                    expectedResults
+                )
+            );
+        }
 
         [TestMethod]
         public void TestGettingBuiltInMethod()
