@@ -222,6 +222,31 @@ namespace CsPurity
                 dependencyList.Add(dependsOnNode);
             }
         }
+        public void RemoveDependency(MethodDeclarationSyntax methodNode, MethodDeclarationSyntax dependsOnNode)
+        {
+            if (!HasMethod(methodNode)) {
+                throw new System.Exception(
+                    $"Method '{methodNode.Identifier}' does not exist in lookup table"
+                );
+            }
+            else if (!HasMethod(dependsOnNode)) {
+                throw new System.Exception(
+                    $"Method '{dependsOnNode.Identifier}' does not exist in lookup table"
+                );
+            }
+            else if (!HasDependency(methodNode, dependsOnNode))
+            {
+                throw new System.Exception(
+                    $"Method '{methodNode.Identifier}' does not depend on '{dependsOnNode.Identifier}'"
+                );
+            }
+            DataRow row = table
+                .AsEnumerable()
+                .Where(row => row.Field<MethodDeclarationSyntax>("identifier") == methodNode)
+                .Single();
+            // TODO: .Field ...
+        }
+
 
         public bool HasDependency(MethodDeclarationSyntax methodNode, MethodDeclarationSyntax dependsOnNode)
         {
