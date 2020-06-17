@@ -88,6 +88,36 @@ namespace CsPurityTests
             Assert.AreEqual(1, CsPurityAnalyzer.Analyze(file));
         }
 
+        [TestMethod]
+        public void TestReadsStaticField()
+        {
+            var file = (@"
+            class C1
+            {
+                int foo()
+                {
+                    bar();
+                    var hej = ""hej"";
+                    return 42 + C2.StaticValue;
+                }
+
+                int bar() {
+                    return 1;
+                }
+            }
+
+            class C2
+            {
+                public static int StaticValue = 1;
+            }
+            ");
+            var tree = CSharpSyntaxTree.ParseText(file);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+            var fooDeclaration = GetMethodDeclaration("foo", root);
+            Analyzer analyzer = new Analyzer(file);
+            Assert.IsTrue(analyzer.ReadsStaticField(fooDeclaration));
+        }
+
         public static MethodDeclarationSyntax GetMethodDeclaration(string name, SyntaxNode root)
         {
             return root
@@ -154,7 +184,7 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = CsPurityAnalyzer.GetSemanticModel(tree);
+            var model = Analyzer.GetSemanticModel(tree);
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
@@ -195,7 +225,7 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = CsPurityAnalyzer.GetSemanticModel(tree);
+            var model = Analyzer.GetSemanticModel(tree);
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
@@ -238,7 +268,7 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = CsPurityAnalyzer.GetSemanticModel(tree);
+            var model = Analyzer.GetSemanticModel(tree);
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
@@ -291,7 +321,7 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = CsPurityAnalyzer.GetSemanticModel(tree);
+            var model = Analyzer.GetSemanticModel(tree);
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
@@ -333,7 +363,7 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = CsPurityAnalyzer.GetSemanticModel(tree);
+            var model = Analyzer.GetSemanticModel(tree);
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
@@ -379,7 +409,7 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = CsPurityAnalyzer.GetSemanticModel(tree);
+            var model = Analyzer.GetSemanticModel(tree);
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
@@ -422,7 +452,7 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = CsPurityAnalyzer.GetSemanticModel(tree);
+            var model = Analyzer.GetSemanticModel(tree);
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
@@ -455,7 +485,7 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = CsPurityAnalyzer.GetSemanticModel(tree);
+            var model = Analyzer.GetSemanticModel(tree);
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
@@ -489,7 +519,7 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = CsPurityAnalyzer.GetSemanticModel(tree);
+            var model = Analyzer.GetSemanticModel(tree);
 
             LookupTable lookupTable1 = new LookupTable(root, model);
             lookupTable1.BuildLookupTable();
@@ -528,7 +558,7 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = CsPurityAnalyzer.GetSemanticModel(tree);
+            var model = Analyzer.GetSemanticModel(tree);
 
             LookupTable lookupTable1 = new LookupTable(root, model);
             lookupTable1.BuildLookupTable();
@@ -651,7 +681,7 @@ namespace CsPurityTests
             Assert.IsFalse(lookupTable.HasDependency(barDeclaration, bazDeclaration));
 
 
-            var model = CsPurityAnalyzer.GetSemanticModel(tree);
+            var model = Analyzer.GetSemanticModel(tree);
             LookupTable lookupTable2 = new LookupTable(root, model);
             lookupTable2.BuildLookupTable();
 
