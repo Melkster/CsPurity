@@ -297,8 +297,8 @@ namespace CsPurity
                         {
                             if (dependency == null) result += "-";
                             else result += dependency.Identifier;
-                            result += ", ";
                         }
+                        result += ", ";
                     }
                     else
                     {
