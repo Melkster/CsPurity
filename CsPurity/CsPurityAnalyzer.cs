@@ -223,6 +223,32 @@ namespace CsPurity
             }
         }
 
+        public void RemoveDependency(MethodDeclarationSyntax methodNode, MethodDeclarationSyntax dependsOnNode)
+        {
+            if (!HasMethod(methodNode)) {
+                throw new System.Exception(
+                    $"Method '{methodNode.Identifier}' does not exist in lookup table"
+                );
+            }
+            else if (!HasMethod(dependsOnNode)) {
+                throw new System.Exception(
+                    $"Method '{dependsOnNode.Identifier}' does not exist in lookup table"
+                );
+            }
+            else if (!HasDependency(methodNode, dependsOnNode))
+            {
+                throw new System.Exception(
+                    $"Method '{methodNode.Identifier}' does not depend on '{dependsOnNode.Identifier}'"
+                );
+            }
+            DataRow row = table
+                .AsEnumerable()
+                .Where(row => row.Field<MethodDeclarationSyntax>("identifier") == methodNode)
+                .Single();
+            row.Field<List<MethodDeclarationSyntax>>("dependencies").Remove(dependsOnNode);
+        }
+
+
         public bool HasDependency(MethodDeclarationSyntax methodNode, MethodDeclarationSyntax dependsOnNode)
         {
             return table
@@ -269,7 +295,8 @@ namespace CsPurity
                         var dependencyList = (List<MethodDeclarationSyntax>)item;
                         foreach (var dependency in dependencyList)
                         {
-                            result += dependency.Identifier;
+                            if (dependency == null) result += "-";
+                            else result += dependency.Identifier;
                         }
                         result += ", ";
                     }
