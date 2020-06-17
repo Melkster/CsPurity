@@ -87,6 +87,49 @@ namespace CsPurityTests
             ");
             Assert.AreEqual(1, CsPurityAnalyzer.Analyze(file));
         }
+
+        public static MethodDeclarationSyntax GetMethodDeclaration(string name, SyntaxNode root)
+        {
+            return root
+                .DescendantNodes()
+                .OfType<MethodDeclarationSyntax>()
+                .Where(m => m.Identifier.Text == name)
+                .Single();
+        }
+
+        // Rows need to be in the same order in both tables
+        public static bool TablesAreEqual(DataTable table1, DataTable table2)
+        {
+            if (table1.Rows.Count != table1.Rows.Count) return false;
+
+            for (int i = 0; i < table1.Rows.Count; i++)
+            {
+                if (!RowsAreEqual(table1.Rows[i], table2.Rows[i])) return false;
+            }
+            return true;
+
+            // Dependency fields can be in different order
+            static bool RowsAreEqual(DataRow row1, DataRow row2)
+            {
+                return
+                    row1.Field<MethodDeclarationSyntax>("identifier") == row2.Field<MethodDeclarationSyntax>("identifier") &&
+                    row1.Field<Purity>("purity") == row2.Field<Purity>("purity") &&
+                    HaveEqualElements(
+                        row1.Field<List<MethodDeclarationSyntax>>("dependencies"),
+                        row2.Field<List<MethodDeclarationSyntax>>("dependencies")
+                    );
+            }
+        }
+
+        public static bool HaveEqualElements(IEnumerable<Object> list1, IEnumerable<Object> list2)
+        {
+            if (list1.Count() != list2.Count()) return false;
+            foreach (var item in list1)
+            {
+                if (!list2.Contains(item)) return false;
+            }
+            return true;
+        }
     }
 
     [TestClass]
@@ -120,7 +163,7 @@ namespace CsPurityTests
             var expectedResultList = new List<MethodDeclarationSyntax> { expectedResult };
 
             Assert.IsTrue(
-                HaveEqualElements(
+                UnitTest.HaveEqualElements(
                     fooDependencies,
                     expectedResultList
                 )
@@ -164,7 +207,7 @@ namespace CsPurityTests
                 .ToList();
 
             Assert.IsTrue(
-                HaveEqualElements(
+                UnitTest.HaveEqualElements(
                     fooDependencies,
                     expectedResults
                 )
@@ -207,7 +250,7 @@ namespace CsPurityTests
                 .ToList();
 
             Assert.IsTrue(
-                HaveEqualElements(
+                UnitTest.HaveEqualElements(
                     fooDependencies,
                     expectedResults
                 )
@@ -260,7 +303,7 @@ namespace CsPurityTests
                 .ToList();
 
             Assert.IsTrue(
-                HaveEqualElements(
+                UnitTest.HaveEqualElements(
                     fooDependencies,
                     expectedResults
                 )
@@ -302,7 +345,7 @@ namespace CsPurityTests
                 .ToList();
 
             Assert.IsTrue(
-                HaveEqualElements(
+                UnitTest.HaveEqualElements(
                     fooDependencies,
                     expectedResults
                 )
@@ -348,7 +391,7 @@ namespace CsPurityTests
                 .ToList();
 
             Assert.IsTrue(
-                HaveEqualElements(
+                UnitTest.HaveEqualElements(
                     fooDependencies,
                     expectedResults
                 )
@@ -391,7 +434,7 @@ namespace CsPurityTests
                 .ToList();
 
             Assert.IsTrue(
-                HaveEqualElements(
+                UnitTest.HaveEqualElements(
                     fooDependencies,
                     expectedResults
                 )
@@ -420,7 +463,7 @@ namespace CsPurityTests
             var expectedResultList = new List<MethodDeclarationSyntax> { null };
 
             Assert.IsTrue(
-                HaveEqualElements(
+                UnitTest.HaveEqualElements(
                     fooDependencies,
                     expectedResultList
                 )
@@ -452,14 +495,14 @@ namespace CsPurityTests
             lookupTable1.BuildLookupTable();
 
             LookupTable lookupTable2 = new LookupTable(null, null);
-            lookupTable2.AddMethod(GetMethodDeclaration("foo", root));
-            lookupTable2.AddMethod(GetMethodDeclaration("bar", root));
+            lookupTable2.AddMethod(UnitTest.GetMethodDeclaration("foo", root));
+            lookupTable2.AddMethod(UnitTest.GetMethodDeclaration("bar", root));
             lookupTable2.AddDependency(
-                GetMethodDeclaration("foo", root),
-                GetMethodDeclaration("bar", root)
+                UnitTest.GetMethodDeclaration("foo", root),
+                UnitTest.GetMethodDeclaration("bar", root)
             );
 
-            Assert.IsTrue(TablesAreEqual(lookupTable2.table, lookupTable1.table));
+            Assert.IsTrue(UnitTest.TablesAreEqual(lookupTable2.table, lookupTable1.table));
         }
 
         [TestMethod]
@@ -491,14 +534,14 @@ namespace CsPurityTests
             lookupTable1.BuildLookupTable();
 
             LookupTable lookupTable2 = new LookupTable(null, null);
-            lookupTable2.AddMethod(GetMethodDeclaration("foo", root));
-            lookupTable2.AddMethod(GetMethodDeclaration("bar", root));
+            lookupTable2.AddMethod(UnitTest.GetMethodDeclaration("foo", root));
+            lookupTable2.AddMethod(UnitTest.GetMethodDeclaration("bar", root));
             lookupTable2.AddDependency(
-                GetMethodDeclaration("foo", root),
-                GetMethodDeclaration("bar", root)
+                UnitTest.GetMethodDeclaration("foo", root),
+                UnitTest.GetMethodDeclaration("bar", root)
             );
 
-            Assert.IsTrue(TablesAreEqual(lookupTable2.table, lookupTable1.table));
+            Assert.IsTrue(UnitTest.TablesAreEqual(lookupTable2.table, lookupTable1.table));
         }
 
         [TestMethod]
@@ -515,7 +558,7 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var methodDeclaration = GetMethodDeclaration("foo", root);
+            var methodDeclaration = UnitTest.GetMethodDeclaration("foo", root);
 
             LookupTable lookupTable = new LookupTable(null, null);
             lookupTable.AddMethod(methodDeclaration);
@@ -542,8 +585,8 @@ namespace CsPurityTests
                 ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var fooDeclaration = GetMethodDeclaration("foo", root);
-            var barDeclaration = GetMethodDeclaration("bar", root);
+            var fooDeclaration = UnitTest.GetMethodDeclaration("foo", root);
+            var barDeclaration = UnitTest.GetMethodDeclaration("bar", root);
 
             LookupTable lookupTable = new LookupTable(null, null);
             lookupTable.AddMethod(fooDeclaration);
@@ -579,9 +622,9 @@ namespace CsPurityTests
                 ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var fooDeclaration = GetMethodDeclaration("foo", root);
-            var barDeclaration = GetMethodDeclaration("bar", root);
-            var bazDeclaration = GetMethodDeclaration("baz", root);
+            var fooDeclaration = UnitTest.GetMethodDeclaration("foo", root);
+            var barDeclaration = UnitTest.GetMethodDeclaration("bar", root);
+            var bazDeclaration = UnitTest.GetMethodDeclaration("baz", root);
 
             LookupTable lookupTable = new LookupTable(null, null);
             lookupTable.AddMethod(fooDeclaration);
@@ -615,49 +658,6 @@ namespace CsPurityTests
             Assert.IsTrue(lookupTable2.HasDependency(fooDeclaration, barDeclaration));
             Assert.IsTrue(lookupTable2.HasDependency(fooDeclaration, bazDeclaration));
             Assert.IsTrue(lookupTable2.HasDependency(barDeclaration, bazDeclaration));
-        }
-
-        static MethodDeclarationSyntax GetMethodDeclaration(string name, SyntaxNode root)
-        {
-            return root
-                .DescendantNodes()
-                .OfType<MethodDeclarationSyntax>()
-                .Where(m => m.Identifier.Text == name)
-                .Single();
-        }
-
-        // Rows need to be in the same order in both tables
-        static bool TablesAreEqual(DataTable table1, DataTable table2)
-        {
-            if (table1.Rows.Count != table1.Rows.Count) return false;
-
-            for (int i = 0; i < table1.Rows.Count; i++)
-            {
-                if (!RowsAreEqual(table1.Rows[i], table2.Rows[i])) return false;
-            }
-            return true;
-
-            // Dependency fields can be in different order
-            static bool RowsAreEqual(DataRow row1, DataRow row2)
-            {
-                return
-                    row1.Field<MethodDeclarationSyntax>("identifier") == row2.Field<MethodDeclarationSyntax>("identifier") &&
-                    row1.Field<Purity>("purity") == row2.Field<Purity>("purity") &&
-                    HaveEqualElements(
-                        row1.Field<List<MethodDeclarationSyntax>>("dependencies"),
-                        row2.Field<List<MethodDeclarationSyntax>>("dependencies")
-                    );
-            }
-        }
-
-        static bool HaveEqualElements(IEnumerable<Object> list1, IEnumerable<Object> list2)
-        {
-            if (list1.Count() != list2.Count()) return false;
-            foreach (var item in list1)
-            {
-                if (!list2.Contains(item)) return false;
-            }
-            return true;
         }
     }
 }

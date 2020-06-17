@@ -123,6 +123,11 @@ namespace CsPurity
                 }
             }
         }
+
+        public Boolean ReadsStaticField(MethodDeclarationSyntax method)
+        {
+            return false;
+        }
     }
 
     public class LookupTable
