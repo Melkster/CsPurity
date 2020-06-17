@@ -88,163 +88,7 @@ namespace CsPurityTests
             Assert.AreEqual(1, CsPurityAnalyzer.Analyze(file));
         }
 
-        [TestMethod]
-        public void TestBuildLookupTable1()
-        {
-            var file = (@"
-                class C1
-                {
-                    int foo()
-                    {
-                        return bar();
-                    }
-
-                    int bar()
-                    {
-                        return 42;
-                    }
-                }
-            ");
-            var tree = CSharpSyntaxTree.ParseText(file);
-            var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = CsPurityAnalyzer.GetSemanticModel(tree);
-
-            LookupTable lookupTable1 = new LookupTable(root, model);
-            lookupTable1.BuildLookupTable();
-
-            LookupTable lookupTable2 = new LookupTable(null, null);
-            lookupTable2.AddMethod(GetMethodDeclaration("foo", root));
-            lookupTable2.AddMethod(GetMethodDeclaration("bar", root));
-            lookupTable2.AddDependency(
-                GetMethodDeclaration("foo", root),
-                GetMethodDeclaration("bar", root)
-            );
-
-            Assert.IsTrue(TablesAreEqual(lookupTable2.table, lookupTable1.table));
-        }
-
-        [TestMethod]
-        public void TestBuildLookupTable2()
-        {
-            var file = (@"
-                class C2
-                {
-                    int foo()
-                    {
-                        C2 c2 = new C2();
-                        return c2.bar();
-                    }
-                }
-
-                class C2
-                {
-                    int bar()
-                    {
-                        return 1;
-                    }
-                }
-            ");
-            var tree = CSharpSyntaxTree.ParseText(file);
-            var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = CsPurityAnalyzer.GetSemanticModel(tree);
-
-            LookupTable lookupTable1 = new LookupTable(root, model);
-            lookupTable1.BuildLookupTable();
-
-            LookupTable lookupTable2 = new LookupTable(null, null);
-            lookupTable2.AddMethod(GetMethodDeclaration("foo", root));
-            lookupTable2.AddMethod(GetMethodDeclaration("bar", root));
-            lookupTable2.AddDependency(
-                GetMethodDeclaration("foo", root),
-                GetMethodDeclaration("bar", root)
-            );
-
-            Assert.IsTrue(TablesAreEqual(lookupTable2.table, lookupTable1.table));
-        }
-
-        [TestMethod]
-        public void TestHasMethod()
-        {
-            var file = (@"
-                class C1
-                {
-                    int foo()
-                    {
-                        return 42;
-                    }
-                }
-            ");
-            var tree = CSharpSyntaxTree.ParseText(file);
-            var root = (CompilationUnitSyntax)tree.GetRoot();
-            var methodDeclaration = GetMethodDeclaration("foo", root);
-
-            LookupTable lookupTable = new LookupTable(null, null);
-            lookupTable.AddMethod(methodDeclaration);
-
-            Assert.IsTrue(lookupTable.HasMethod(methodDeclaration));
-        }
-
-        [TestMethod]
-        public void TestAddDependency()
-        {
-            var file = (@"
-                class C1
-                {
-                    int foo()
-                    {
-                        return bar();
-                    }
-
-                    int bar()
-                    {
-                        return 42;
-                    }
-                }
-            ");
-            var tree = CSharpSyntaxTree.ParseText(file);
-            var root = (CompilationUnitSyntax)tree.GetRoot();
-            var fooDeclaration = GetMethodDeclaration("foo", root);
-            var barDeclaration = GetMethodDeclaration("bar", root);
-
-            LookupTable lookupTable = new LookupTable(null, null);
-            lookupTable.AddMethod(fooDeclaration);
-            lookupTable.AddDependency(fooDeclaration, barDeclaration);
-
-            Assert.IsTrue(lookupTable.HasDependency(fooDeclaration, barDeclaration));
-        }
-
-        [TestMethod]
-        public void TestRemoveDependency()
-        {
-            var file = (@"
-                class C1
-                {
-                    int foo()
-                    {
-                        return bar();
-                    }
-
-                    int bar()
-                    {
-                        return 42;
-                    }
-                }
-            ");
-            var tree = CSharpSyntaxTree.ParseText(file);
-            var root = (CompilationUnitSyntax)tree.GetRoot();
-            var fooDeclaration = GetMethodDeclaration("foo", root);
-            var barDeclaration = GetMethodDeclaration("bar", root);
-
-            LookupTable lookupTable = new LookupTable(null, null);
-            lookupTable.AddMethod(fooDeclaration);
-            lookupTable.AddDependency(fooDeclaration, barDeclaration);
-            Assert.IsTrue(lookupTable.HasDependency(fooDeclaration, barDeclaration));
-
-            lookupTable.RemoveDependency(fooDeclaration, barDeclaration);
-            Assert.IsFalse(lookupTable.HasDependency(fooDeclaration, barDeclaration));
-        }
-
-        MethodDeclarationSyntax GetMethodDeclaration(string name, SyntaxNode root)
+        static MethodDeclarationSyntax GetMethodDeclaration(string name, SyntaxNode root)
         {
             return root
                 .DescendantNodes()
@@ -295,18 +139,18 @@ namespace CsPurityTests
             public void TestGetDependencies()
             {
                 var file = (@"
-                class C1
-                {
-                    int foo()
+                    class C1
                     {
-                        return bar();
-                    }
+                        int foo()
+                        {
+                            return bar();
+                        }
 
-                    int bar() {
-                        return ""bar"";
+                        int bar() {
+                            return ""bar"";
+                        }
                     }
-                }
-            ");
+                ");
                 var tree = CSharpSyntaxTree.ParseText(file);
                 var root = (CompilationUnitSyntax)tree.GetRoot();
                 var model = CsPurityAnalyzer.GetSemanticModel(tree);
@@ -329,25 +173,25 @@ namespace CsPurityTests
             public void TestGettingMultipleDependencies()
             {
                 var file = (@"
-                class C1
-                {
-                    string foo()
+                    class C1
                     {
-                        baz();
-                        return bar();
-                    }
+                        string foo()
+                        {
+                            baz();
+                            return bar();
+                        }
 
-                    string bar()
-                    {
-                        return ""bar"";
-                    }
+                        string bar()
+                        {
+                            return ""bar"";
+                        }
 
-                    void baz()
-                    {
-                        return ""baz"";
+                        void baz()
+                        {
+                            return ""baz"";
+                        }
                     }
-                }
-            ");
+                ");
                 var tree = CSharpSyntaxTree.ParseText(file);
                 var root = (CompilationUnitSyntax)tree.GetRoot();
                 var model = CsPurityAnalyzer.GetSemanticModel(tree);
@@ -373,24 +217,24 @@ namespace CsPurityTests
             public void TestGettingNestedDependencies()
             {
                 var file = (@"
-                class C1
-                {
-                    string foo()
+                    class C1
                     {
-                        return bar();
-                    }
+                        string foo()
+                        {
+                            return bar();
+                        }
 
-                    string bar()
-                    {
-                        return baz();
-                    }
+                        string bar()
+                        {
+                            return baz();
+                        }
 
-                    void baz()
-                    {
-                        return ""baz"";
+                        void baz()
+                        {
+                            return ""baz"";
+                        }
                     }
-                }
-            ");
+                ");
                 var tree = CSharpSyntaxTree.ParseText(file);
                 var root = (CompilationUnitSyntax)tree.GetRoot();
                 var model = CsPurityAnalyzer.GetSemanticModel(tree);
@@ -416,34 +260,34 @@ namespace CsPurityTests
             public void TestGettingMultipleNestedDependencies()
             {
                 var file = (@"
-                class C1
-                {
-                    string foo()
+                    class C1
                     {
-                        return bar() + baz();
-                    }
+                        string foo()
+                        {
+                            return bar() + baz();
+                        }
 
-                    string bar()
-                    {
-                        return far() + faz();
-                    }
+                        string bar()
+                        {
+                            return far() + faz();
+                        }
 
-                    void baz()
-                    {
-                        return ""baz"";
-                    }
+                        void baz()
+                        {
+                            return ""baz"";
+                        }
 
-                    void far()
-                    {
-                        return ""far"";
-                    }
+                        void far()
+                        {
+                            return ""far"";
+                        }
 
-                    void faz()
-                    {
-                        return ""faz"";
+                        void faz()
+                        {
+                            return ""faz"";
+                        }
                     }
-                }
-            ");
+                ");
                 var tree = CSharpSyntaxTree.ParseText(file);
                 var root = (CompilationUnitSyntax)tree.GetRoot();
                 var model = CsPurityAnalyzer.GetSemanticModel(tree);
@@ -469,23 +313,23 @@ namespace CsPurityTests
             public void TestGettingMethodDependency()
             {
                 var file = (@"
-                class C1
-                {
-                    string foo()
+                    class C1
                     {
-                        C2 c2 = new C2();
-                        return c2.bar();
+                        string foo()
+                        {
+                            C2 c2 = new C2();
+                            return c2.bar();
+                        }
                     }
-                }
 
-                class C2
-                {
-                    public string bar()
+                    class C2
                     {
-                        return ""bar"";
+                        public string bar()
+                        {
+                            return ""bar"";
+                        }
                     }
-                }
-            ");
+                ");
                 var tree = CSharpSyntaxTree.ParseText(file);
                 var root = (CompilationUnitSyntax)tree.GetRoot();
                 var model = CsPurityAnalyzer.GetSemanticModel(tree);
@@ -511,27 +355,27 @@ namespace CsPurityTests
             public void TestGettingDependenciesWithSameNames()
             {
                 var file = (@"
-                class C1
-                {
-                    string foo()
+                    class C1
                     {
-                        return C2.bar() + bar();
+                        string foo()
+                        {
+                            return C2.bar() + bar();
+                        }
+
+                        string bar()
+                        {
+                            return ""bar"";
+                        }
                     }
 
-                    string bar()
+                    class C2
                     {
-                        return ""bar"";
+                        public static string bar()
+                        {
+                            return ""bar"";
+                        }
                     }
-                }
-
-                class C2
-                {
-                    public static string bar()
-                    {
-                        return ""bar"";
-                    }
-                }
-            ");
+                ");
                 var tree = CSharpSyntaxTree.ParseText(file);
                 var root = (CompilationUnitSyntax)tree.GetRoot();
                 var model = CsPurityAnalyzer.GetSemanticModel(tree);
@@ -557,24 +401,24 @@ namespace CsPurityTests
             public void TestGettingMultipleIdenticalDependencies()
             {
                 var file = (@"
-                class C1
-                {
-                    string foo()
+                    class C1
                     {
-                        return bar() + baz();
-                    }
+                        string foo()
+                        {
+                            return bar() + baz();
+                        }
 
-                    string bar()
-                    {
-                        return ""bar"" + baz() + baz();
-                    }
+                        string bar()
+                        {
+                            return ""bar"" + baz() + baz();
+                        }
 
-                    void baz()
-                    {
-                        return ""baz"";
+                        void baz()
+                        {
+                            return ""baz"";
+                        }
                     }
-                }
-            ");
+                ");
                 var tree = CSharpSyntaxTree.ParseText(file);
                 var root = (CompilationUnitSyntax)tree.GetRoot();
                 var model = CsPurityAnalyzer.GetSemanticModel(tree);
@@ -596,20 +440,18 @@ namespace CsPurityTests
                 );
             }
 
-            // TODO: test dependencies on two methods with the same name
-
             [TestMethod]
             public void TestGettingBuiltInMethod()
             {
                 var file = (@"
-                class C1
-                {
-                    int foo()
+                    class C1
                     {
-                        Console.WriteLine();
+                        int foo()
+                        {
+                            Console.WriteLine();
+                        }
                     }
-                }
-            ");
+                ");
                 var tree = CSharpSyntaxTree.ParseText(file);
                 var root = (CompilationUnitSyntax)tree.GetRoot();
                 var model = CsPurityAnalyzer.GetSemanticModel(tree);
@@ -625,6 +467,196 @@ namespace CsPurityTests
                         expectedResultList
                     )
                 );
+            }
+
+            [TestMethod]
+            public void TestBuildLookupTable1()
+            {
+                var file = (@"
+                    class C1
+                    {
+                        int foo()
+                        {
+                            return bar();
+                        }
+
+                        int bar()
+                        {
+                            return 42;
+                        }
+                    }
+                ");
+                var tree = CSharpSyntaxTree.ParseText(file);
+                var root = (CompilationUnitSyntax)tree.GetRoot();
+                var model = CsPurityAnalyzer.GetSemanticModel(tree);
+
+                LookupTable lookupTable1 = new LookupTable(root, model);
+                lookupTable1.BuildLookupTable();
+
+                LookupTable lookupTable2 = new LookupTable(null, null);
+                lookupTable2.AddMethod(GetMethodDeclaration("foo", root));
+                lookupTable2.AddMethod(GetMethodDeclaration("bar", root));
+                lookupTable2.AddDependency(
+                    GetMethodDeclaration("foo", root),
+                    GetMethodDeclaration("bar", root)
+                );
+
+                Assert.IsTrue(TablesAreEqual(lookupTable2.table, lookupTable1.table));
+            }
+
+            [TestMethod]
+            public void TestBuildLookupTable2()
+            {
+                var file = (@"
+                    class C2
+                    {
+                        int foo()
+                        {
+                            C2 c2 = new C2();
+                            return c2.bar();
+                        }
+                    }
+
+                    class C2
+                    {
+                        int bar()
+                        {
+                            return 1;
+                        }
+                    }
+                ");
+                var tree = CSharpSyntaxTree.ParseText(file);
+                var root = (CompilationUnitSyntax)tree.GetRoot();
+                var model = CsPurityAnalyzer.GetSemanticModel(tree);
+
+                LookupTable lookupTable1 = new LookupTable(root, model);
+                lookupTable1.BuildLookupTable();
+
+                LookupTable lookupTable2 = new LookupTable(null, null);
+                lookupTable2.AddMethod(GetMethodDeclaration("foo", root));
+                lookupTable2.AddMethod(GetMethodDeclaration("bar", root));
+                lookupTable2.AddDependency(
+                    GetMethodDeclaration("foo", root),
+                    GetMethodDeclaration("bar", root)
+                );
+
+                Assert.IsTrue(TablesAreEqual(lookupTable2.table, lookupTable1.table));
+            }
+
+            [TestMethod]
+            public void TestHasMethod()
+            {
+                var file = (@"
+                    class C1
+                    {
+                        int foo()
+                        {
+                            return 42;
+                        }
+                    }
+                ");
+                var tree = CSharpSyntaxTree.ParseText(file);
+                var root = (CompilationUnitSyntax)tree.GetRoot();
+                var methodDeclaration = GetMethodDeclaration("foo", root);
+
+                LookupTable lookupTable = new LookupTable(null, null);
+                lookupTable.AddMethod(methodDeclaration);
+
+                Assert.IsTrue(lookupTable.HasMethod(methodDeclaration));
+            }
+
+            [TestMethod]
+            public void TestAddDependency()
+            {
+                var file = (@"
+                    class C1
+                    {
+                        int foo()
+                        {
+                            return bar();
+                        }
+
+                        int bar()
+                        {
+                            return 42;
+                        }
+                    }
+                ");
+                var tree = CSharpSyntaxTree.ParseText(file);
+                var root = (CompilationUnitSyntax)tree.GetRoot();
+                var fooDeclaration = GetMethodDeclaration("foo", root);
+                var barDeclaration = GetMethodDeclaration("bar", root);
+
+                LookupTable lookupTable = new LookupTable(null, null);
+                lookupTable.AddMethod(fooDeclaration);
+                lookupTable.AddDependency(fooDeclaration, barDeclaration);
+
+                Assert.IsTrue(lookupTable.HasDependency(fooDeclaration, barDeclaration));
+            }
+
+            [TestMethod]
+            public void TestRemoveDependency()
+            {
+                var file = (@"
+                    class C1
+                    {
+                        int foo()
+                        {
+                            return bar() + C2.baz();
+                        }
+
+                        int bar()
+                        {
+                            return 42 + C2.baz();
+                        }
+                    }
+
+                    class C2
+                    {
+                        public static int baz()
+                        {
+                            return 42;
+                        }
+                    }
+                ");
+                var tree = CSharpSyntaxTree.ParseText(file);
+                var root = (CompilationUnitSyntax)tree.GetRoot();
+                var fooDeclaration = GetMethodDeclaration("foo", root);
+                var barDeclaration = GetMethodDeclaration("bar", root);
+                var bazDeclaration = GetMethodDeclaration("baz", root);
+
+                LookupTable lookupTable = new LookupTable(null, null);
+                lookupTable.AddMethod(fooDeclaration);
+                lookupTable.AddDependency(fooDeclaration, barDeclaration);
+                lookupTable.AddDependency(fooDeclaration, bazDeclaration);
+                lookupTable.AddDependency(barDeclaration, bazDeclaration);
+                Assert.IsTrue(lookupTable.HasDependency(fooDeclaration, barDeclaration));
+                Assert.IsTrue(lookupTable.HasDependency(fooDeclaration, bazDeclaration));
+                Assert.IsTrue(lookupTable.HasDependency(barDeclaration, bazDeclaration));
+
+                lookupTable.RemoveDependency(fooDeclaration, barDeclaration);
+                Assert.IsFalse(lookupTable.HasDependency(fooDeclaration, barDeclaration));
+                Assert.IsTrue(lookupTable.HasDependency(fooDeclaration, bazDeclaration));
+                Assert.IsTrue(lookupTable.HasDependency(barDeclaration, bazDeclaration));
+
+                lookupTable.RemoveDependency(fooDeclaration, bazDeclaration);
+                Assert.IsFalse(lookupTable.HasDependency(fooDeclaration, barDeclaration));
+                Assert.IsFalse(lookupTable.HasDependency(fooDeclaration, bazDeclaration));
+                Assert.IsTrue(lookupTable.HasDependency(barDeclaration, bazDeclaration));
+
+                lookupTable.RemoveDependency(barDeclaration, bazDeclaration);
+                Assert.IsFalse(lookupTable.HasDependency(fooDeclaration, barDeclaration));
+                Assert.IsFalse(lookupTable.HasDependency(fooDeclaration, bazDeclaration));
+                Assert.IsFalse(lookupTable.HasDependency(barDeclaration, bazDeclaration));
+
+
+                var model = CsPurityAnalyzer.GetSemanticModel(tree);
+                LookupTable lookupTable2 = new LookupTable(root, model);
+                lookupTable2.BuildLookupTable();
+
+                Assert.IsTrue(lookupTable2.HasDependency(fooDeclaration, barDeclaration));
+                Assert.IsTrue(lookupTable2.HasDependency(fooDeclaration, bazDeclaration));
+                Assert.IsTrue(lookupTable2.HasDependency(barDeclaration, bazDeclaration));
             }
         }
     }

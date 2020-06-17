@@ -222,6 +222,7 @@ namespace CsPurity
                 dependencyList.Add(dependsOnNode);
             }
         }
+
         public void RemoveDependency(MethodDeclarationSyntax methodNode, MethodDeclarationSyntax dependsOnNode)
         {
             if (!HasMethod(methodNode)) {
@@ -244,7 +245,7 @@ namespace CsPurity
                 .AsEnumerable()
                 .Where(row => row.Field<MethodDeclarationSyntax>("identifier") == methodNode)
                 .Single();
-            // TODO: .Field ...
+            row.Field<List<MethodDeclarationSyntax>>("dependencies").Remove(dependsOnNode);
         }
 
 
@@ -294,9 +295,10 @@ namespace CsPurity
                         var dependencyList = (List<MethodDeclarationSyntax>)item;
                         foreach (var dependency in dependencyList)
                         {
-                            result += dependency.Identifier;
+                            if (dependency == null) result += "-";
+                            else result += dependency.Identifier;
+                            result += ", ";
                         }
-                        result += ", ";
                     }
                     else
                     {
