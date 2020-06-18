@@ -111,8 +111,8 @@ namespace CsPurity
     public class Analyzer
     {
 
-        readonly CompilationUnitSyntax root;
-        readonly SemanticModel model;
+        readonly public CompilationUnitSyntax root;
+        readonly public SemanticModel model;
 
         public Analyzer(string text)
         {
@@ -121,23 +121,21 @@ namespace CsPurity
             this.model = GetSemanticModel(tree);
         }
 
-        public Boolean ReadsStaticField(MethodDeclarationSyntax method)
+        public Boolean ReadsStaticFieldOrProperty(MethodDeclarationSyntax method)
         {
-
-            var memberAccessExpressions = method
+            IEnumerable<MemberAccessExpressionSyntax> memberAccessExpressions = method
                 .DescendantNodes()
                 .OfType<MemberAccessExpressionSyntax>();
 
             foreach (var member in memberAccessExpressions)
             {
-                var identifierSymbol = model
-                    .GetSymbolInfo(member)
-                    .Symbol // TODO: `.Symbol` can be null, for instance when the symbol is a class name
-                    ;
-                WriteLine(identifierSymbol);
-                WriteLine();
+                ISymbol symbol = model.GetSymbolInfo(member).Symbol;
+                bool isStatic = symbol.IsStatic;
+                bool isField = symbol.Kind == SymbolKind.Field;
+                bool isProperty = symbol.Kind == SymbolKind.Property;
+                bool isMethod = symbol.Kind == SymbolKind.Method;
+                if (isStatic && (isField || isProperty) && !isMethod) return true;
             }
-            //method.DescendantNodes().OfType
             return false;
         }
 

@@ -92,30 +92,105 @@ namespace CsPurityTests
         public void TestReadsStaticField()
         {
             var file = (@"
-            class C1
-            {
-                int foo()
+                class C1
                 {
-                    bar();
-                    var hej = ""hej"";
-                    return 42 + C2.StaticValue;
+                    int foo()
+                    {
+                        bar();
+                        C2.fooz();
+                        return 42 + C2.StaticValue;
+                    }
+
+                    static int bar()
+                    {
+                        return 1;
+                    }
+
+                    void faz()
+                    {
+                        C2.fooz();
+                    }
+
+                    int foz()
+                    {
+                        return C3.StaticValue;
+                    }
                 }
 
-                int bar() {
-                    return 1;
+                class C2
+                {
+                    public static int StaticValue = 1;
+                    public static int fooz()
+                    {
+                        return 3;
+                    }
                 }
-            }
 
-            class C2
-            {
-                public static int StaticValue = 1;
-            }
+                static class C3
+                {
+                    public static int StaticValue = 3;
+                }
             ");
-            var tree = CSharpSyntaxTree.ParseText(file);
-            var root = (CompilationUnitSyntax)tree.GetRoot();
-            var fooDeclaration = GetMethodDeclaration("foo", root);
             Analyzer analyzer = new Analyzer(file);
-            Assert.IsTrue(analyzer.ReadsStaticField(fooDeclaration));
+            var fooDeclaration = GetMethodDeclaration("foo", analyzer.root);
+            var barDeclaration = GetMethodDeclaration("bar", analyzer.root);
+            var fazDeclaration = GetMethodDeclaration("faz", analyzer.root);
+
+            Assert.IsTrue(analyzer.ReadsStaticFieldOrProperty(fooDeclaration));
+            Assert.IsFalse(analyzer.ReadsStaticFieldOrProperty(barDeclaration));
+            Assert.IsFalse(analyzer.ReadsStaticFieldOrProperty(fazDeclaration));
+        }
+
+        [TestMethod]
+        public void TestReadsStaticProperty()
+        {
+            var file = (@"
+                static class C1
+                {
+                    string foo() {
+                        return C2.Name;
+                    }
+                }
+
+                class C2
+                {
+                    public static string Name { get; set; } = ""foo"";
+                }
+            ");
+            Analyzer analyzer = new Analyzer(file);
+            var fooDeclaration = GetMethodDeclaration("foo", analyzer.root);
+
+            Assert.IsTrue(analyzer.ReadsStaticFieldOrProperty(fooDeclaration));
+        }
+
+        // Implicitly static property means a non-static property pointing to a
+        // static field
+        //[TestMethod] // Not implemented in Analyzer for now
+        public void TestReadsImplicitlyStaticProperty()
+        {
+            var file = (@"
+                class C1
+                {
+                    string foo() {
+                    C2 c2 = new C2();
+                        return c2.Name;
+                    }
+                }
+
+                class C2
+                {
+                    static string _name = ""foo"";
+                    public string Name
+                    {
+                        get => _name;
+                        set => _name = value;
+                    }
+                }
+            ");
+            Analyzer analyzer = new Analyzer(file);
+            var fooDeclaration = GetMethodDeclaration("foo", analyzer.root);
+
+            Assert.IsTrue(analyzer.ReadsStaticFieldOrProperty(fooDeclaration));
         }
 
         public static MethodDeclarationSyntax GetMethodDeclaration(string name, SyntaxNode root)
