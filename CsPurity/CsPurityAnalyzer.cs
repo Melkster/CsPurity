@@ -19,6 +19,7 @@ namespace CsPurity
 
     public class CsPurityAnalyzer
     {
+
         /// <summary>
         /// Analyzes the purity of the given text.
         /// </summary>
@@ -27,15 +28,10 @@ namespace CsPurity
         public static double Analyze(string text)
         {
             var result = new List<int>();
+            Analyzer analyzer = new Analyzer(text);
             var tree = CSharpSyntaxTree.ParseText(text);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var compilation = CSharpCompilation.Create("HelloWorld")
-                .AddReferences(
-                    MetadataReference.CreateFromFile(
-                        typeof(string).Assembly.Location
-                    )
-                ).AddSyntaxTrees(tree);
-            var model = compilation.GetSemanticModel(tree);
+            var model = Analyzer.GetSemanticModel(tree);
             var methodDeclarations = root.DescendantNodes().OfType<MethodDeclarationSyntax>();
 
             foreach (var methodDeclaration in methodDeclarations)
@@ -62,19 +58,6 @@ namespace CsPurity
             }
 
             return result.Any() ? result.Average() : 0; // If input text has no methods purity is 0
-        }
-
-        public static SemanticModel GetSemanticModel(SyntaxTree tree)
-        {
-            var model = CSharpCompilation.Create("assemblyName")
-                .AddReferences(
-                    MetadataReference.CreateFromFile(
-                        typeof(string).Assembly.Location
-                    )
-                 )
-                .AddSyntaxTrees(tree)
-                .GetSemanticModel(tree);
-            return model;
         }
 
         static void Main(string[] args)
@@ -122,6 +105,51 @@ namespace CsPurity
                     WriteLine($"Something went wrong when reading the file {args[0]}");
                 }
             }
+        }
+    }
+
+    public class Analyzer
+    {
+
+        readonly public CompilationUnitSyntax root;
+        readonly public SemanticModel model;
+
+        public Analyzer(string text)
+        {
+            var tree = CSharpSyntaxTree.ParseText(text);
+            this.root = (CompilationUnitSyntax)tree.GetRoot();
+            this.model = GetSemanticModel(tree);
+        }
+
+        public Boolean ReadsStaticFieldOrProperty(MethodDeclarationSyntax method)
+        {
+            IEnumerable<MemberAccessExpressionSyntax> memberAccessExpressions = method
+                .DescendantNodes()
+                .OfType<MemberAccessExpressionSyntax>();
+
+            foreach (var member in memberAccessExpressions)
+            {
+                ISymbol symbol = model.GetSymbolInfo(member).Symbol;
+                bool isStatic = symbol.IsStatic;
+                bool isField = symbol.Kind == SymbolKind.Field;
+                bool isProperty = symbol.Kind == SymbolKind.Property;
+                bool isMethod = symbol.Kind == SymbolKind.Method;
+                if (isStatic && (isField || isProperty) && !isMethod) return true;
+            }
+            return false;
+        }
+
+        public static SemanticModel GetSemanticModel(SyntaxTree tree)
+        {
+            var model = CSharpCompilation.Create("assemblyName")
+                .AddReferences(
+                    MetadataReference.CreateFromFile(
+                        typeof(string).Assembly.Location
+                    )
+                 )
+                .AddSyntaxTrees(tree)
+                .GetSemanticModel(tree);
+            return model;
         }
     }
 
