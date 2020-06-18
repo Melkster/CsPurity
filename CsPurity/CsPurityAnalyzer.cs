@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Data;
 
 using static System.Console;
+using System.Runtime.CompilerServices;
 
 namespace CsPurity
 {
@@ -113,15 +114,32 @@ namespace CsPurity
 
         readonly public CompilationUnitSyntax root;
         readonly public SemanticModel model;
+        readonly public LookupTable lookupTable;
 
         public Analyzer(string text)
         {
             var tree = CSharpSyntaxTree.ParseText(text);
             this.root = (CompilationUnitSyntax)tree.GetRoot();
             this.model = GetSemanticModel(tree);
+            this.lookupTable = new LookupTable(root, model);
         }
 
-        public Boolean ReadsStaticFieldOrProperty(MethodDeclarationSyntax method)
+        public static void Analyze(string text)
+        {
+            Analyzer analyzer = new Analyzer(text);
+            List<MethodDeclarationSyntax> workingSet = analyzer
+                .lookupTable
+                .GetWorkingSet();
+            foreach (var method in workingSet)
+            {
+                if (analyzer.ReadsStaticFieldOrProperty(method))
+                {
+                    // TODO
+                }
+            }
+        }
+
+        public bool ReadsStaticFieldOrProperty(MethodDeclarationSyntax method)
         {
             IEnumerable<MemberAccessExpressionSyntax> memberAccessExpressions = method
                 .DescendantNodes()
@@ -230,7 +248,6 @@ namespace CsPurity
             return results;
         }
 
-
         /// <summary>
         /// Adds a dependency for a method to the lookup table
         /// </summary>
@@ -242,10 +259,10 @@ namespace CsPurity
             AddMethod(dependsOnNode);
             DataRow row = table
                 .AsEnumerable()
-                .Where(row => row.Field<MethodDeclarationSyntax>("identifier") == methodNode)
+                .Where(row => row["identifier"] == methodNode)
                 .Single();
-            List<MethodDeclarationSyntax> dependencies = row.
-                Field<List<MethodDeclarationSyntax>>("dependencies");
+            List<MethodDeclarationSyntax> dependencies = row
+                .Field<List<MethodDeclarationSyntax>>("dependencies");
             if (!dependencies.Contains(dependsOnNode))
             {
                 dependencies.Add(dependsOnNode);
@@ -272,18 +289,17 @@ namespace CsPurity
             }
             DataRow row = table
                 .AsEnumerable()
-                .Where(row => row.Field<MethodDeclarationSyntax>("identifier") == methodNode)
+                .Where(row => row["identifier"] == methodNode)
                 .Single();
             row.Field<List<MethodDeclarationSyntax>>("dependencies").Remove(dependsOnNode);
         }
-
 
         public bool HasDependency(MethodDeclarationSyntax methodNode, MethodDeclarationSyntax dependsOnNode)
         {
             return table
                 .AsEnumerable()
                 .Any(row =>
-                    row.Field<MethodDeclarationSyntax>("identifier") == methodNode &&
+                    row["identifier"] == methodNode &&
                     row.Field<List<MethodDeclarationSyntax>>("dependencies").Contains(dependsOnNode)
                 );
         }
@@ -305,7 +321,7 @@ namespace CsPurity
         {
             return table
                 .AsEnumerable()
-                .Any(row => row.Field<MethodDeclarationSyntax>("identifier") == methodNode);
+                .Any(row => row["identifier"] == methodNode);
         }
 
         public List<MethodDeclarationSyntax> GetWorkingSet()
@@ -313,14 +329,54 @@ namespace CsPurity
             List<MethodDeclarationSyntax> workingSet = new List<MethodDeclarationSyntax>();
             foreach (var row in table.AsEnumerable())
             {
-                List<MethodDeclarationSyntax> dependencies = row.
-                    Field<List<MethodDeclarationSyntax>>("dependencies");
+                List<MethodDeclarationSyntax> dependencies = row
+                    .Field<List<MethodDeclarationSyntax>>("dependencies");
                 if (!dependencies.Any())
                 {
                     workingSet.Add(row.Field<MethodDeclarationSyntax>("identifier"));
                 }
             }
             return workingSet;
+        }
+
+        public Purity GetPurity(MethodDeclarationSyntax method)
+        {
+            return (Purity)GetMethodRow(method)["purity"];
+        }
+
+        public void SetPurity(MethodDeclarationSyntax method, Purity purity)
+        {
+            GetMethodRow(method)["purity"] = purity;
+        }
+
+        DataRow GetMethodRow(MethodDeclarationSyntax method)
+        {
+            return table
+                .AsEnumerable()
+                .Where(row => row["identifier"] == method)
+                .Single();
+        }
+
+        /// <summary>
+        /// Gets all methods in the working set that are marked `Impure` in the
+        /// lookup table.
+        /// </summary>
+        /// <param name="workingSet">The working set</param>
+        /// <returns>
+        /// All methods in <paramref name="workingSet"/> are marked `Impure`
+        /// </returns>
+        public List<MethodDeclarationSyntax> GetAllImpureMethods(List<MethodDeclarationSyntax> workingSet)
+        {
+            List<MethodDeclarationSyntax> impureMethods = new List<MethodDeclarationSyntax>();
+            foreach (var method in workingSet)
+            {
+                DataRow row = GetMethodRow(method);
+                if (row["purity"].Equals(Purity.Impure))
+                {
+                    impureMethods.Add(method);
+                }
+            }
+            return impureMethods;
         }
 
         public override string ToString()

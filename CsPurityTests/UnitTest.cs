@@ -755,7 +755,6 @@ namespace CsPurityTests
             Assert.IsFalse(lookupTable.HasDependency(fooDeclaration, bazDeclaration));
             Assert.IsFalse(lookupTable.HasDependency(barDeclaration, bazDeclaration));
 
-
             var model = Analyzer.GetSemanticModel(tree);
             LookupTable lookupTable2 = new LookupTable(root, model);
             lookupTable2.BuildLookupTable();
@@ -814,6 +813,12 @@ namespace CsPurityTests
                     lookupTable.GetWorkingSet()
                 )
             );
+        }
+
+        //[TestMethod]
+        public void TestGetAllImpureMethods()
+        {
+            // TODO
         }
     }
 }
