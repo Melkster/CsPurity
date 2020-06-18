@@ -244,10 +244,11 @@ namespace CsPurity
                 .AsEnumerable()
                 .Where(row => row.Field<MethodDeclarationSyntax>("identifier") == methodNode)
                 .Single();
-            List<MethodDeclarationSyntax> dependencyList = row.Field<List<MethodDeclarationSyntax>>("dependencies");
-            if (!dependencyList.Contains(dependsOnNode))
+            List<MethodDeclarationSyntax> dependencies = row.
+                Field<List<MethodDeclarationSyntax>>("dependencies");
+            if (!dependencies.Contains(dependsOnNode))
             {
-                dependencyList.Add(dependsOnNode);
+                dependencies.Add(dependsOnNode);
             }
         }
 
@@ -307,6 +308,21 @@ namespace CsPurity
                 .Any(row => row.Field<MethodDeclarationSyntax>("identifier") == methodNode);
         }
 
+        public List<MethodDeclarationSyntax> GetWorkingSet()
+        {
+            List<MethodDeclarationSyntax> workingSet = new List<MethodDeclarationSyntax>();
+            foreach (var row in table.AsEnumerable())
+            {
+                List<MethodDeclarationSyntax> dependencies = row.
+                    Field<List<MethodDeclarationSyntax>>("dependencies");
+                if (!dependencies.Any())
+                {
+                    workingSet.Add(row.Field<MethodDeclarationSyntax>("identifier"));
+                }
+            }
+            return workingSet;
+        }
+
         public override string ToString()
         {
             string result = "";
@@ -320,13 +336,13 @@ namespace CsPurity
                     }
                     else if (item is List<MethodDeclarationSyntax>)
                     {
-                        var dependencyList = (List<MethodDeclarationSyntax>)item;
-                        foreach (var dependency in dependencyList)
+                        var dependencies = (List<MethodDeclarationSyntax>)item;
+                        foreach (var dependency in dependencies)
                         {
                             if (dependency == null) result += "-";
                             else result += dependency.Identifier;
+                            result += ", ";
                         }
-                        result += ", ";
                     }
                     else
                     {

@@ -675,19 +675,19 @@ namespace CsPurityTests
         public void TestAddDependency()
         {
             var file = (@"
-                    class C1
+                class C1
+                {
+                    int foo()
                     {
-                        int foo()
-                        {
-                            return bar();
-                        }
-
-                        int bar()
-                        {
-                            return 42;
-                        }
+                        return bar();
                     }
-                ");
+
+                    int bar()
+                    {
+                        return 42;
+                    }
+                }
+            ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
             var fooDeclaration = UnitTest.GetMethodDeclaration("foo", root);
@@ -704,27 +704,27 @@ namespace CsPurityTests
         public void TestRemoveDependency()
         {
             var file = (@"
-                    class C1
+                class C1
+                {
+                    int foo()
                     {
-                        int foo()
-                        {
-                            return bar() + C2.baz();
-                        }
-
-                        int bar()
-                        {
-                            return 42 + C2.baz();
-                        }
+                        return bar() + C2.baz();
                     }
 
-                    class C2
+                    int bar()
                     {
-                        public static int baz()
-                        {
-                            return 42;
-                        }
+                        return 42 + C2.baz();
                     }
-                ");
+                }
+
+                class C2
+                {
+                    public static int baz()
+                    {
+                        return 42;
+                    }
+                }
+            ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
             var fooDeclaration = UnitTest.GetMethodDeclaration("foo", root);
@@ -763,6 +763,57 @@ namespace CsPurityTests
             Assert.IsTrue(lookupTable2.HasDependency(fooDeclaration, barDeclaration));
             Assert.IsTrue(lookupTable2.HasDependency(fooDeclaration, bazDeclaration));
             Assert.IsTrue(lookupTable2.HasDependency(barDeclaration, bazDeclaration));
+        }
+
+        [TestMethod]
+        public void TestGetWorkingSet()
+        {
+            var file = (@"
+                class C1
+                {
+                    int foo()
+                    {
+                        return bar() + C2.baz();
+                    }
+
+                    int bar()
+                    {
+                        return 42 + C2.baz();
+                    }
+                }
+
+                class C2
+                {
+                    public static int baz()
+                    {
+                        return 42;
+                    }
+
+                    int foz() {
+                        return 1;
+                    }
+                }
+            ");
+            var tree = CSharpSyntaxTree.ParseText(file);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+            var model = Analyzer.GetSemanticModel(tree);
+            var bazDeclaration = UnitTest.GetMethodDeclaration("baz", root);
+            var fozDeclaration = UnitTest.GetMethodDeclaration("foz", root);
+
+            LookupTable lookupTable = new LookupTable(root, model);
+            lookupTable.BuildLookupTable();
+
+            var expectedResult = new List<MethodDeclarationSyntax>() {
+                bazDeclaration,
+                fozDeclaration
+            };
+
+            Assert.IsTrue(
+                UnitTest.HaveEqualElements(
+                    expectedResult,
+                    lookupTable.GetWorkingSet()
+                )
+            );
         }
     }
 }
