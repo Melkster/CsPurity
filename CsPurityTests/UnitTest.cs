@@ -597,9 +597,8 @@ namespace CsPurityTests
             var model = Analyzer.GetSemanticModel(tree);
 
             LookupTable lookupTable1 = new LookupTable(root, model);
-            lookupTable1.BuildLookupTable();
 
-            LookupTable lookupTable2 = new LookupTable(null, null);
+            LookupTable lookupTable2 = new LookupTable();
             lookupTable2.AddMethod(UnitTest.GetMethodDeclaration("foo", root));
             lookupTable2.AddMethod(UnitTest.GetMethodDeclaration("bar", root));
             lookupTable2.AddDependency(
@@ -636,9 +635,8 @@ namespace CsPurityTests
             var model = Analyzer.GetSemanticModel(tree);
 
             LookupTable lookupTable1 = new LookupTable(root, model);
-            lookupTable1.BuildLookupTable();
 
-            LookupTable lookupTable2 = new LookupTable(null, null);
+            LookupTable lookupTable2 = new LookupTable();
             lookupTable2.AddMethod(UnitTest.GetMethodDeclaration("foo", root));
             lookupTable2.AddMethod(UnitTest.GetMethodDeclaration("bar", root));
             lookupTable2.AddDependency(
@@ -665,7 +663,7 @@ namespace CsPurityTests
             var root = (CompilationUnitSyntax)tree.GetRoot();
             var methodDeclaration = UnitTest.GetMethodDeclaration("foo", root);
 
-            LookupTable lookupTable = new LookupTable(null, null);
+            LookupTable lookupTable = new LookupTable();
             lookupTable.AddMethod(methodDeclaration);
 
             Assert.IsTrue(lookupTable.HasMethod(methodDeclaration));
@@ -693,7 +691,7 @@ namespace CsPurityTests
             var fooDeclaration = UnitTest.GetMethodDeclaration("foo", root);
             var barDeclaration = UnitTest.GetMethodDeclaration("bar", root);
 
-            LookupTable lookupTable = new LookupTable(null, null);
+            LookupTable lookupTable = new LookupTable();
             lookupTable.AddMethod(fooDeclaration);
             lookupTable.AddDependency(fooDeclaration, barDeclaration);
 
@@ -731,7 +729,7 @@ namespace CsPurityTests
             var barDeclaration = UnitTest.GetMethodDeclaration("bar", root);
             var bazDeclaration = UnitTest.GetMethodDeclaration("baz", root);
 
-            LookupTable lookupTable = new LookupTable(null, null);
+            LookupTable lookupTable = new LookupTable();
             lookupTable.AddMethod(fooDeclaration);
             lookupTable.AddDependency(fooDeclaration, barDeclaration);
             lookupTable.AddDependency(fooDeclaration, bazDeclaration);
@@ -757,7 +755,6 @@ namespace CsPurityTests
 
             var model = Analyzer.GetSemanticModel(tree);
             LookupTable lookupTable2 = new LookupTable(root, model);
-            lookupTable2.BuildLookupTable();
 
             Assert.IsTrue(lookupTable2.HasDependency(fooDeclaration, barDeclaration));
             Assert.IsTrue(lookupTable2.HasDependency(fooDeclaration, bazDeclaration));
@@ -765,7 +762,7 @@ namespace CsPurityTests
         }
 
         [TestMethod]
-        public void TestGetWorkingSet()
+        public void TestCalculateWorkingSet()
         {
             var file = (@"
                 class C1
@@ -800,7 +797,6 @@ namespace CsPurityTests
             var fozDeclaration = UnitTest.GetMethodDeclaration("foz", root);
 
             LookupTable lookupTable = new LookupTable(root, model);
-            lookupTable.BuildLookupTable();
 
             var expectedResult = new List<MethodDeclarationSyntax>() {
                 bazDeclaration,
@@ -810,7 +806,7 @@ namespace CsPurityTests
             Assert.IsTrue(
                 UnitTest.HaveEqualElements(
                     expectedResult,
-                    lookupTable.GetWorkingSet()
+                    lookupTable.workingSet
                 )
             );
         }
@@ -853,7 +849,6 @@ namespace CsPurityTests
             var fozDeclaration = UnitTest.GetMethodDeclaration("foz", root);
 
             LookupTable lookupTable = new LookupTable(root, model);
-            lookupTable.BuildLookupTable();
 
             Assert.AreEqual(lookupTable.GetPurity(fooDeclaration), Purity.Pure);
             Assert.AreEqual(lookupTable.GetPurity(barDeclaration), Purity.Pure);
@@ -917,7 +912,6 @@ namespace CsPurityTests
             var fozDeclaration = UnitTest.GetMethodDeclaration("foz", root);
 
             LookupTable lookupTable = new LookupTable(root, model);
-            lookupTable.BuildLookupTable();
 
             lookupTable.SetPurity(fooDeclaration, Purity.Impure);
             lookupTable.SetPurity(barDeclaration, Purity.Impure);
@@ -978,7 +972,6 @@ namespace CsPurityTests
             var fozDeclaration = UnitTest.GetMethodDeclaration("foz", root);
 
             LookupTable lookupTable = new LookupTable(root, model);
-            lookupTable.BuildLookupTable();
 
             var result = lookupTable.GetCallers(bazDeclaration);
             var expected = new List<MethodDeclarationSyntax> {

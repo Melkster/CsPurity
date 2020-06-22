@@ -127,15 +127,21 @@ namespace CsPurity
         public static void Analyze(string text)
         {
             Analyzer analyzer = new Analyzer(text);
-            List<MethodDeclarationSyntax> workingSet = analyzer
-                .lookupTable
-                .GetWorkingSet();
+            LookupTable table = analyzer.lookupTable;
+            List<MethodDeclarationSyntax> workingSet = table.workingSet;
             foreach (var method in workingSet)
             {
+                // Perform checks:
                 if (analyzer.ReadsStaticFieldOrProperty(method))
                 {
-                    analyzer.lookupTable.SetPurity(method, Purity.Impure);
+                    table.SetPurity(method, Purity.Impure);
+                    foreach (var caller in table.GetCallers(method))
+                    {
+                        table.SetPurity(caller, Purity.Impure);
+                        table.RemoveDependency(caller, method);
+                    }
                 }
+                table.workingSet.Remove(method);
             }
         }
 
@@ -174,17 +180,24 @@ namespace CsPurity
     public class LookupTable
     {
         public DataTable table = new DataTable();
-        readonly CompilationUnitSyntax  root;
+        public WorkingSet workingSet;
+        readonly CompilationUnitSyntax root;
         readonly SemanticModel model;
 
-        public LookupTable(CompilationUnitSyntax root, SemanticModel model)
+        public LookupTable()
+        {
+            table.Columns.Add("identifier", typeof(MethodDeclarationSyntax));
+            table.Columns.Add("dependencies", typeof(List<MethodDeclarationSyntax>));
+            table.Columns.Add("purity", typeof(Purity));
+        }
+
+        public LookupTable(CompilationUnitSyntax root, SemanticModel model) : this()
         {
             this.root = root;
             this.model = model;
 
-            table.Columns.Add("identifier", typeof(MethodDeclarationSyntax));
-            table.Columns.Add("dependencies", typeof(List<MethodDeclarationSyntax>));
-            table.Columns.Add("purity", typeof(Purity));
+            BuildLookupTable();
+            this.workingSet = new WorkingSet(this);
         }
 
         public void BuildLookupTable()
@@ -324,21 +337,6 @@ namespace CsPurity
                 .Any(row => row["identifier"] == methodNode);
         }
 
-        public List<MethodDeclarationSyntax> GetWorkingSet()
-        {
-            List<MethodDeclarationSyntax> workingSet = new List<MethodDeclarationSyntax>();
-            foreach (var row in table.AsEnumerable())
-            {
-                List<MethodDeclarationSyntax> dependencies = row
-                    .Field<List<MethodDeclarationSyntax>>("dependencies");
-                if (!dependencies.Any())
-                {
-                    workingSet.Add(row.Field<MethodDeclarationSyntax>("identifier"));
-                }
-            }
-            return workingSet;
-        }
-
         public Purity GetPurity(MethodDeclarationSyntax method)
         {
             return (Purity)GetMethodRow(method)["purity"];
@@ -423,6 +421,29 @@ namespace CsPurity
                 result += "\n";
             }
             return result;
+        }
+
+        public class WorkingSet : List<MethodDeclarationSyntax>
+        {
+            private readonly LookupTable lookupTable;
+            public WorkingSet(LookupTable lookupTable)
+            {
+                this.lookupTable = lookupTable;
+                Calculate();
+            }
+
+            public void Calculate()
+            {
+                foreach (var row in lookupTable.table.AsEnumerable())
+                {
+                    List<MethodDeclarationSyntax> dependencies = row
+                        .Field<List<MethodDeclarationSyntax>>("dependencies");
+                    if (!dependencies.Any())
+                    {
+                        this.Add(row.Field<MethodDeclarationSyntax>("identifier"));
+                    }
+                }
+            }
         }
     }
 }
