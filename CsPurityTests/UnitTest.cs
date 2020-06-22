@@ -193,6 +193,51 @@ namespace CsPurityTests
             Assert.IsTrue(analyzer.ReadsStaticFieldOrProperty(fooDeclaration));
         }
 
+        [TestMethod] // Not implemented in Analyzer for now
+        public void TestAnalyze()
+        {
+            var file = (@"
+                class C1
+                {
+                    int foo()
+                    {
+                        C2.baz();
+						C2 c2 = new C2();
+                        return c2.foz();
+                    }
+
+                    int bar()
+                    {
+                        C2.baz();
+                        return 42;
+                    }
+                }
+
+                class C2
+                {
+                    public static int value = 42;
+
+                    public static void baz()
+                    {
+                        value++;
+                    }
+
+                    public int foz() {
+                        return 1;
+                    }
+                }
+            ");
+            var tree = CSharpSyntaxTree.ParseText(file);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+            var model = Analyzer.GetSemanticModel(tree);
+            var fooDeclaration = UnitTest.GetMethodDeclaration("foo", root);
+            var barDeclaration = UnitTest.GetMethodDeclaration("bar", root);
+            var bazDeclaration = UnitTest.GetMethodDeclaration("baz", root);
+            var fozDeclaration = UnitTest.GetMethodDeclaration("foz", root);
+
+            WriteLine(Analyzer.Analyze(file));
+        }
+
         public static MethodDeclarationSyntax GetMethodDeclaration(string name, SyntaxNode root)
         {
             return root

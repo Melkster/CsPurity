@@ -124,25 +124,34 @@ namespace CsPurity
             this.lookupTable = new LookupTable(root, model);
         }
 
-        public static void Analyze(string text)
+        public static LookupTable Analyze(string text)
         {
             Analyzer analyzer = new Analyzer(text);
             LookupTable table = analyzer.lookupTable;
-            List<MethodDeclarationSyntax> workingSet = table.workingSet;
-            foreach (var method in workingSet)
+            WorkingSet workingSet = table.workingSet;
+            bool tableModified = true;
+
+            while (tableModified == true)
             {
-                // Perform checks:
-                if (analyzer.ReadsStaticFieldOrProperty(method))
+                tableModified = false;
+
+                foreach (var method in workingSet)
                 {
-                    table.SetPurity(method, Purity.Impure);
-                    foreach (var caller in table.GetCallers(method))
+                    // Perform checks:
+                    if (analyzer.ReadsStaticFieldOrProperty(method))
                     {
-                        table.SetPurity(caller, Purity.Impure);
-                        table.RemoveDependency(caller, method);
+                        table.SetPurity(method, Purity.Impure);
+                        foreach (var caller in table.GetCallers(method))
+                        {
+                            table.SetPurity(caller, Purity.Impure);
+                            table.RemoveDependency(caller, method);
+                            tableModified = true;
+                        }
                     }
                 }
-                table.workingSet.Remove(method);
+                workingSet.Calculate();
             }
+            return table;
         }
 
         public bool ReadsStaticFieldOrProperty(MethodDeclarationSyntax method)
@@ -422,26 +431,26 @@ namespace CsPurity
             }
             return result;
         }
+    }
 
-        public class WorkingSet : List<MethodDeclarationSyntax>
+    public class WorkingSet : List<MethodDeclarationSyntax>
+    {
+        private readonly LookupTable lookupTable;
+        public WorkingSet(LookupTable lookupTable)
         {
-            private readonly LookupTable lookupTable;
-            public WorkingSet(LookupTable lookupTable)
-            {
-                this.lookupTable = lookupTable;
-                Calculate();
-            }
+            this.lookupTable = lookupTable;
+            Calculate();
+        }
 
-            public void Calculate()
+        public void Calculate()
+        {
+            foreach (var row in lookupTable.table.AsEnumerable())
             {
-                foreach (var row in lookupTable.table.AsEnumerable())
+                List<MethodDeclarationSyntax> dependencies = row
+                    .Field<List<MethodDeclarationSyntax>>("dependencies");
+                if (!dependencies.Any())
                 {
-                    List<MethodDeclarationSyntax> dependencies = row
-                        .Field<List<MethodDeclarationSyntax>>("dependencies");
-                    if (!dependencies.Any())
-                    {
-                        this.Add(row.Field<MethodDeclarationSyntax>("identifier"));
-                    }
+                    this.Add(row.Field<MethodDeclarationSyntax>("identifier"));
                 }
             }
         }
