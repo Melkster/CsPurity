@@ -815,10 +815,182 @@ namespace CsPurityTests
             );
         }
 
-        //[TestMethod]
+        [TestMethod]
+        public void TestGetSetPurity()
+        {
+            var file = (@"
+                class C1
+                {
+                    int foo()
+                    {
+                        return bar() + C2.baz();
+                    }
+
+                    int bar()
+                    {
+                        return 42 + C2.baz();
+                    }
+                }
+
+                class C2
+                {
+                    public static int baz()
+                    {
+                        return 42;
+                    }
+
+                    int foz() {
+                        return 1;
+                    }
+                }
+            ");
+            var tree = CSharpSyntaxTree.ParseText(file);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+            var model = Analyzer.GetSemanticModel(tree);
+            var fooDeclaration = UnitTest.GetMethodDeclaration("foo", root);
+            var barDeclaration = UnitTest.GetMethodDeclaration("bar", root);
+            var bazDeclaration = UnitTest.GetMethodDeclaration("baz", root);
+            var fozDeclaration = UnitTest.GetMethodDeclaration("foz", root);
+
+            LookupTable lookupTable = new LookupTable(root, model);
+            lookupTable.BuildLookupTable();
+
+            Assert.AreEqual(lookupTable.GetPurity(fooDeclaration), Purity.Pure);
+            Assert.AreEqual(lookupTable.GetPurity(barDeclaration), Purity.Pure);
+            Assert.AreEqual(lookupTable.GetPurity(bazDeclaration), Purity.Pure);
+            Assert.AreEqual(lookupTable.GetPurity(fozDeclaration), Purity.Pure);
+
+            lookupTable.SetPurity(fooDeclaration, Purity.Impure);
+            lookupTable.SetPurity(barDeclaration, Purity.Pure);
+            lookupTable.SetPurity(bazDeclaration, Purity.ParametricallyImpure);
+
+            Assert.AreEqual(lookupTable.GetPurity(fooDeclaration), Purity.Impure);
+            Assert.AreEqual(lookupTable.GetPurity(barDeclaration), Purity.Pure);
+            Assert.AreEqual(lookupTable.GetPurity(bazDeclaration), Purity.ParametricallyImpure);
+            Assert.AreEqual(lookupTable.GetPurity(fozDeclaration), Purity.Pure);
+
+            lookupTable.SetPurity(fooDeclaration, Purity.Impure);
+            lookupTable.SetPurity(barDeclaration, Purity.Pure);
+            lookupTable.SetPurity(bazDeclaration, Purity.ParametricallyImpure);
+
+            Assert.AreEqual(lookupTable.GetPurity(fooDeclaration), Purity.Impure);
+            Assert.AreEqual(lookupTable.GetPurity(barDeclaration), Purity.Pure);
+            Assert.AreEqual(lookupTable.GetPurity(bazDeclaration), Purity.ParametricallyImpure);
+            Assert.AreEqual(lookupTable.GetPurity(fozDeclaration), Purity.Pure);
+        }
+
+        [TestMethod]
         public void TestGetAllImpureMethods()
         {
-            // TODO
+            var file = (@"
+                class C1
+                {
+                    int foo()
+                    {
+                        return bar() + C2.baz();
+                    }
+
+                    int bar()
+                    {
+                        return 42 + C2.baz();
+                    }
+                }
+
+                class C2
+                {
+                    public static int baz()
+                    {
+                        return 42;
+                    }
+
+                    int foz() {
+                        return 1;
+                    }
+                }
+            ");
+            var tree = CSharpSyntaxTree.ParseText(file);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+            var model = Analyzer.GetSemanticModel(tree);
+            var fooDeclaration = UnitTest.GetMethodDeclaration("foo", root);
+            var barDeclaration = UnitTest.GetMethodDeclaration("bar", root);
+            var bazDeclaration = UnitTest.GetMethodDeclaration("baz", root);
+            var fozDeclaration = UnitTest.GetMethodDeclaration("foz", root);
+
+            LookupTable lookupTable = new LookupTable(root, model);
+            lookupTable.BuildLookupTable();
+
+            lookupTable.SetPurity(fooDeclaration, Purity.Impure);
+            lookupTable.SetPurity(barDeclaration, Purity.Impure);
+            var workingSet = new List<MethodDeclarationSyntax>
+            {
+                fooDeclaration,
+                barDeclaration,
+                bazDeclaration,
+                fozDeclaration
+            };
+            var expected = new List<MethodDeclarationSyntax>
+            {
+                fooDeclaration,
+                barDeclaration
+            };
+            Assert.IsTrue(
+                UnitTest.HaveEqualElements(
+                    expected, lookupTable.GetAllImpureMethods(workingSet)
+                )
+            );
+        }
+
+        [TestMethod]
+        public void TestGetCallers()
+        {
+            var file = (@"
+                class C1
+                {
+                    int foo()
+                    {
+                        return bar() + C2.baz();
+                    }
+
+                    int bar()
+                    {
+                        return 42 + C2.baz();
+                    }
+                }
+
+                class C2
+                {
+                    public static int baz()
+                    {
+                        return 42;
+                    }
+
+                    int foz() {
+                        return 1;
+                    }
+                }
+            ");
+            var tree = CSharpSyntaxTree.ParseText(file);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+            var model = Analyzer.GetSemanticModel(tree);
+            var fooDeclaration = UnitTest.GetMethodDeclaration("foo", root);
+            var barDeclaration = UnitTest.GetMethodDeclaration("bar", root);
+            var bazDeclaration = UnitTest.GetMethodDeclaration("baz", root);
+            var fozDeclaration = UnitTest.GetMethodDeclaration("foz", root);
+
+            LookupTable lookupTable = new LookupTable(root, model);
+            lookupTable.BuildLookupTable();
+
+            var result = lookupTable.GetCallers(bazDeclaration);
+            var expected = new List<MethodDeclarationSyntax> {
+                fooDeclaration, 
+                barDeclaration
+            };
+            Assert.IsTrue(UnitTest.HaveEqualElements(result, expected));
+            Assert.IsTrue(lookupTable.GetCallers(fozDeclaration).Count == 0);
+
+            result = lookupTable.GetCallers(barDeclaration);
+            expected = new List<MethodDeclarationSyntax> { fooDeclaration };
+            Assert.IsTrue(UnitTest.HaveEqualElements(result, expected));
         }
     }
 }

@@ -13,10 +13,10 @@ namespace CsPurity
 {
     public enum Purity
     {
-        Pure,
+        Impure,
         ParametricallyImpure,
-        Impure
-    }
+        Pure
+    } // The order here matters as they are compared with `<`
 
     public class CsPurityAnalyzer
     {
@@ -134,7 +134,7 @@ namespace CsPurity
             {
                 if (analyzer.ReadsStaticFieldOrProperty(method))
                 {
-                    // TODO
+                    analyzer.lookupTable.SetPurity(method, Purity.Impure);
                 }
             }
         }
@@ -370,13 +370,27 @@ namespace CsPurity
             List<MethodDeclarationSyntax> impureMethods = new List<MethodDeclarationSyntax>();
             foreach (var method in workingSet)
             {
-                DataRow row = GetMethodRow(method);
-                if (row["purity"].Equals(Purity.Impure))
+                if (GetPurity(method).Equals(Purity.Impure))
                 {
                     impureMethods.Add(method);
                 }
             }
             return impureMethods;
+        }
+
+        public List<MethodDeclarationSyntax> GetCallers(MethodDeclarationSyntax method)
+        {
+            List<MethodDeclarationSyntax> result = new List<MethodDeclarationSyntax>();
+            foreach (var row in table.AsEnumerable())
+            {
+                List<MethodDeclarationSyntax> dependencies = row
+                    .Field<List<MethodDeclarationSyntax>>("dependencies");
+                if (dependencies.Contains(method))
+                {
+                    result.Add(row.Field<MethodDeclarationSyntax>("identifier"));
+                }
+            }
+            return result;
         }
 
         public override string ToString()
