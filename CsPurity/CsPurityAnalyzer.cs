@@ -216,7 +216,8 @@ namespace CsPurity
             {
                 AddMethod(methodDeclaration);
                 var dependencies = GetDependencies(methodDeclaration);
-                foreach (var dependency in dependencies) {
+                foreach (var dependency in dependencies)
+                {
                     AddDependency(methodDeclaration, dependency);
                 }
             }
@@ -293,12 +294,14 @@ namespace CsPurity
 
         public void RemoveDependency(MethodDeclarationSyntax methodNode, MethodDeclarationSyntax dependsOnNode)
         {
-            if (!HasMethod(methodNode)) {
+            if (!HasMethod(methodNode))
+            {
                 throw new System.Exception(
                     $"Method '{methodNode.Identifier}' does not exist in lookup table"
                 );
             }
-            else if (!HasMethod(dependsOnNode)) {
+            else if (!HasMethod(dependsOnNode))
+            {
                 throw new System.Exception(
                     $"Method '{dependsOnNode.Identifier}' does not exist in lookup table"
                 );
@@ -436,6 +439,8 @@ namespace CsPurity
     public class WorkingSet : List<MethodDeclarationSyntax>
     {
         private readonly LookupTable lookupTable;
+        private readonly List<MethodDeclarationSyntax> history =
+            new List<MethodDeclarationSyntax>();
         public WorkingSet(LookupTable lookupTable)
         {
             this.lookupTable = lookupTable;
@@ -444,13 +449,17 @@ namespace CsPurity
 
         public void Calculate()
         {
+            this.Clear();
+
             foreach (var row in lookupTable.table.AsEnumerable())
             {
+                MethodDeclarationSyntax identifier = row.Field<MethodDeclarationSyntax>("identifier");
                 List<MethodDeclarationSyntax> dependencies = row
                     .Field<List<MethodDeclarationSyntax>>("dependencies");
-                if (!dependencies.Any())
+                if (!dependencies.Any() && !history.Contains(identifier))
                 {
-                    this.Add(row.Field<MethodDeclarationSyntax>("identifier"));
+                    this.Add(identifier);
+                    history.Add(identifier);
                 }
             }
         }

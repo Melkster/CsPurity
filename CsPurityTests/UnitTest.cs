@@ -193,7 +193,7 @@ namespace CsPurityTests
             Assert.IsTrue(analyzer.ReadsStaticFieldOrProperty(fooDeclaration));
         }
 
-        [TestMethod] // Not implemented in Analyzer for now
+        [TestMethod]
         public void TestAnalyze()
         {
             var file = (@"
@@ -219,7 +219,9 @@ namespace CsPurityTests
 
                     public static void baz()
                     {
-                        value++;
+                        // value++;
+                        // this.value++;
+                        this.value = 3;
                     }
 
                     public int foz() {
@@ -851,6 +853,15 @@ namespace CsPurityTests
             Assert.IsTrue(
                 UnitTest.HaveEqualElements(
                     expectedResult,
+                    lookupTable.workingSet
+                )
+            );
+
+            lookupTable.workingSet.Calculate();
+
+            Assert.IsTrue(
+                UnitTest.HaveEqualElements(
+                    new List<MethodDeclarationSyntax>(),
                     lookupTable.workingSet
                 )
             );
