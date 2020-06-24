@@ -220,8 +220,7 @@ namespace CsPurityTests
                     public static void baz()
                     {
                         // value++;
-                        // this.value++;
-                        this.value = 3;
+                        value = 3;
                     }
 
                     public int foz() {

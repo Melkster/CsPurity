@@ -159,16 +159,38 @@ namespace CsPurity
             IEnumerable<MemberAccessExpressionSyntax> memberAccessExpressions = method
                 .DescendantNodes()
                 .OfType<MemberAccessExpressionSyntax>();
-
-            foreach (var member in memberAccessExpressions)
+            foreach (var expression in memberAccessExpressions)
             {
-                ISymbol symbol = model.GetSymbolInfo(member).Symbol;
+                ISymbol symbol = model.GetSymbolInfo(expression).Symbol;
                 bool isStatic = symbol.IsStatic;
                 bool isField = symbol.Kind == SymbolKind.Field;
                 bool isProperty = symbol.Kind == SymbolKind.Property;
                 bool isMethod = symbol.Kind == SymbolKind.Method;
                 if (isStatic && (isField || isProperty) && !isMethod) return true;
             }
+
+            if (memberAccessExpressions.Any()) return false;
+
+            IEnumerable<ExpressionStatementSyntax> expressionStatements = method
+                .DescendantNodes()
+                .OfType<ExpressionStatementSyntax>();
+
+            foreach (var expression in expressionStatements)
+            {
+                //IdentifierNameSyntax identifier = expression
+                var identifier = expression
+                    .DescendantNodes()
+                    .OfType<IdentifierNameSyntax>()
+                    .Single();
+
+                ISymbol symbol = model.GetSymbolInfo(identifier).Symbol;
+                bool isStatic = symbol.IsStatic;
+                bool isField = symbol.Kind == SymbolKind.Field;
+                bool isProperty = symbol.Kind == SymbolKind.Property;
+                bool isMethod = symbol.Kind == SymbolKind.Method;
+                if (isStatic && (isField || isProperty) && !isMethod) return true;
+            }
+
             return false;
         }
 
