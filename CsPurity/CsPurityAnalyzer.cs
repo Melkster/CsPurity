@@ -12,10 +12,10 @@ namespace CsPurity
 {
     public enum Purity
     {
-        Pure,
+        Impure,
         ParametricallyImpure,
-        Impure
-    }
+        Pure
+    } // The order here matters as they are compared with `<`
 
     public class CsPurityAnalyzer
     {
@@ -113,27 +113,60 @@ namespace CsPurity
 
         readonly public CompilationUnitSyntax root;
         readonly public SemanticModel model;
+        readonly public LookupTable lookupTable;
 
         public Analyzer(string text)
         {
             var tree = CSharpSyntaxTree.ParseText(text);
             this.root = (CompilationUnitSyntax)tree.GetRoot();
             this.model = GetSemanticModel(tree);
+            this.lookupTable = new LookupTable(root, model);
         }
 
-        public Boolean ReadsStaticFieldOrProperty(MethodDeclarationSyntax method)
+        public static LookupTable Analyze(string text)
         {
-            IEnumerable<MemberAccessExpressionSyntax> memberAccessExpressions = method
-                .DescendantNodes()
-                .OfType<MemberAccessExpressionSyntax>();
+            Analyzer analyzer = new Analyzer(text);
+            LookupTable table = analyzer.lookupTable;
+            WorkingSet workingSet = table.workingSet;
+            bool tableModified = true;
 
-            foreach (var member in memberAccessExpressions)
+            while (tableModified == true)
             {
-                ISymbol symbol = model.GetSymbolInfo(member).Symbol;
+                tableModified = false;
+
+                foreach (var method in workingSet)
+                {
+                    // Perform checks:
+                    if (analyzer.ReadsStaticFieldOrProperty(method))
+                    {
+                        table.SetPurity(method, Purity.Impure);
+                        foreach (var caller in table.GetCallers(method))
+                        {
+                            table.SetPurity(caller, Purity.Impure);
+                            table.RemoveDependency(caller, method);
+                            tableModified = true;
+                        }
+                    }
+                }
+                workingSet.Calculate();
+            }
+            return table;
+        }
+
+        public bool ReadsStaticFieldOrProperty(MethodDeclarationSyntax method)
+        {
+            IEnumerable<IdentifierNameSyntax> identifiers = method
+                .DescendantNodes()
+                .OfType<IdentifierNameSyntax>();
+
+            foreach (var identifier in identifiers)
+            {
+                ISymbol symbol = model.GetSymbolInfo(identifier).Symbol;
                 bool isStatic = symbol.IsStatic;
                 bool isField = symbol.Kind == SymbolKind.Field;
                 bool isProperty = symbol.Kind == SymbolKind.Property;
                 bool isMethod = symbol.Kind == SymbolKind.Method;
+
                 if (isStatic && (isField || isProperty) && !isMethod) return true;
             }
             return false;
@@ -156,17 +189,24 @@ namespace CsPurity
     public class LookupTable
     {
         public DataTable table = new DataTable();
-        readonly CompilationUnitSyntax  root;
-        readonly SemanticModel model;
+        public WorkingSet workingSet;
+        public readonly CompilationUnitSyntax root;
+        public readonly SemanticModel model;
 
-        public LookupTable(CompilationUnitSyntax root, SemanticModel model)
+        public LookupTable()
+        {
+            table.Columns.Add("identifier", typeof(MethodDeclarationSyntax));
+            table.Columns.Add("dependencies", typeof(List<MethodDeclarationSyntax>));
+            table.Columns.Add("purity", typeof(Purity));
+        }
+
+        public LookupTable(CompilationUnitSyntax root, SemanticModel model) : this()
         {
             this.root = root;
             this.model = model;
 
-            table.Columns.Add("identifier", typeof(MethodDeclarationSyntax));
-            table.Columns.Add("dependencies", typeof(List<MethodDeclarationSyntax>));
-            table.Columns.Add("purity", typeof(Purity));
+            BuildLookupTable();
+            this.workingSet = new WorkingSet(this);
         }
 
         public void BuildLookupTable()
@@ -176,7 +216,8 @@ namespace CsPurity
             {
                 AddMethod(methodDeclaration);
                 var dependencies = GetDependencies(methodDeclaration);
-                foreach (var dependency in dependencies) {
+                foreach (var dependency in dependencies)
+                {
                     AddDependency(methodDeclaration, dependency);
                 }
             }
@@ -230,7 +271,6 @@ namespace CsPurity
             return results;
         }
 
-
         /// <summary>
         /// Adds a dependency for a method to the lookup table
         /// </summary>
@@ -242,10 +282,10 @@ namespace CsPurity
             AddMethod(dependsOnNode);
             DataRow row = table
                 .AsEnumerable()
-                .Where(row => row.Field<MethodDeclarationSyntax>("identifier") == methodNode)
+                .Where(row => row["identifier"] == methodNode)
                 .Single();
-            List<MethodDeclarationSyntax> dependencies = row.
-                Field<List<MethodDeclarationSyntax>>("dependencies");
+            List<MethodDeclarationSyntax> dependencies = row
+                .Field<List<MethodDeclarationSyntax>>("dependencies");
             if (!dependencies.Contains(dependsOnNode))
             {
                 dependencies.Add(dependsOnNode);
@@ -254,12 +294,14 @@ namespace CsPurity
 
         public void RemoveDependency(MethodDeclarationSyntax methodNode, MethodDeclarationSyntax dependsOnNode)
         {
-            if (!HasMethod(methodNode)) {
+            if (!HasMethod(methodNode))
+            {
                 throw new System.Exception(
                     $"Method '{methodNode.Identifier}' does not exist in lookup table"
                 );
             }
-            else if (!HasMethod(dependsOnNode)) {
+            else if (!HasMethod(dependsOnNode))
+            {
                 throw new System.Exception(
                     $"Method '{dependsOnNode.Identifier}' does not exist in lookup table"
                 );
@@ -272,18 +314,17 @@ namespace CsPurity
             }
             DataRow row = table
                 .AsEnumerable()
-                .Where(row => row.Field<MethodDeclarationSyntax>("identifier") == methodNode)
+                .Where(row => row["identifier"] == methodNode)
                 .Single();
             row.Field<List<MethodDeclarationSyntax>>("dependencies").Remove(dependsOnNode);
         }
-
 
         public bool HasDependency(MethodDeclarationSyntax methodNode, MethodDeclarationSyntax dependsOnNode)
         {
             return table
                 .AsEnumerable()
                 .Any(row =>
-                    row.Field<MethodDeclarationSyntax>("identifier") == methodNode &&
+                    row["identifier"] == methodNode &&
                     row.Field<List<MethodDeclarationSyntax>>("dependencies").Contains(dependsOnNode)
                 );
         }
@@ -305,22 +346,61 @@ namespace CsPurity
         {
             return table
                 .AsEnumerable()
-                .Any(row => row.Field<MethodDeclarationSyntax>("identifier") == methodNode);
+                .Any(row => row["identifier"] == methodNode);
         }
 
-        public List<MethodDeclarationSyntax> GetWorkingSet()
+        public Purity GetPurity(MethodDeclarationSyntax method)
         {
-            List<MethodDeclarationSyntax> workingSet = new List<MethodDeclarationSyntax>();
-            foreach (var row in table.AsEnumerable())
+            return (Purity)GetMethodRow(method)["purity"];
+        }
+
+        public void SetPurity(MethodDeclarationSyntax method, Purity purity)
+        {
+            GetMethodRow(method)["purity"] = purity;
+        }
+
+        DataRow GetMethodRow(MethodDeclarationSyntax method)
+        {
+            return table
+                .AsEnumerable()
+                .Where(row => row["identifier"] == method)
+                .Single();
+        }
+
+        /// <summary>
+        /// Gets all methods in the working set that are marked `Impure` in the
+        /// lookup table.
+        /// </summary>
+        /// <param name="workingSet">The working set</param>
+        /// <returns>
+        /// All methods in <paramref name="workingSet"/> are marked `Impure`
+        /// </returns>
+        public List<MethodDeclarationSyntax> GetAllImpureMethods(List<MethodDeclarationSyntax> workingSet)
+        {
+            List<MethodDeclarationSyntax> impureMethods = new List<MethodDeclarationSyntax>();
+            foreach (var method in workingSet)
             {
-                List<MethodDeclarationSyntax> dependencies = row.
-                    Field<List<MethodDeclarationSyntax>>("dependencies");
-                if (!dependencies.Any())
+                if (GetPurity(method).Equals(Purity.Impure))
                 {
-                    workingSet.Add(row.Field<MethodDeclarationSyntax>("identifier"));
+                    impureMethods.Add(method);
                 }
             }
-            return workingSet;
+            return impureMethods;
+        }
+
+        public List<MethodDeclarationSyntax> GetCallers(MethodDeclarationSyntax method)
+        {
+            List<MethodDeclarationSyntax> result = new List<MethodDeclarationSyntax>();
+            foreach (var row in table.AsEnumerable())
+            {
+                List<MethodDeclarationSyntax> dependencies = row
+                    .Field<List<MethodDeclarationSyntax>>("dependencies");
+                if (dependencies.Contains(method))
+                {
+                    result.Add(row.Field<MethodDeclarationSyntax>("identifier"));
+                }
+            }
+            return result;
         }
 
         public override string ToString()
@@ -353,6 +433,35 @@ namespace CsPurity
                 result += "\n";
             }
             return result;
+        }
+    }
+
+    public class WorkingSet : List<MethodDeclarationSyntax>
+    {
+        private readonly LookupTable lookupTable;
+        private readonly List<MethodDeclarationSyntax> history =
+            new List<MethodDeclarationSyntax>();
+        public WorkingSet(LookupTable lookupTable)
+        {
+            this.lookupTable = lookupTable;
+            Calculate();
+        }
+
+        public void Calculate()
+        {
+            this.Clear();
+
+            foreach (var row in lookupTable.table.AsEnumerable())
+            {
+                MethodDeclarationSyntax identifier = row.Field<MethodDeclarationSyntax>("identifier");
+                List<MethodDeclarationSyntax> dependencies = row
+                    .Field<List<MethodDeclarationSyntax>>("dependencies");
+                if (!dependencies.Any() && !history.Contains(identifier))
+                {
+                    this.Add(identifier);
+                    history.Add(identifier);
+                }
+            }
         }
     }
 }
