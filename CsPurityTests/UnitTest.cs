@@ -16,7 +16,7 @@ namespace CsPurityTests
     public class UnitTest
     {
         [TestMethod]
-        public void TestBasicImpurity()
+        public void TestAnalyzeBasicPurity()
         {
             var file = (@"
                 class C1
@@ -28,23 +28,10 @@ namespace CsPurityTests
                     }
                 }
             ");
-            Assert.AreEqual(0, CsPurityAnalyzer.Analyze(file));
-        }
+            LookupTable resultTable = Analyzer.Analyze(file);
+            var fooDeclaration = resultTable.GetMethodByName("foo");
 
-        [TestMethod]
-        public void TestBasicPurity()
-        {
-            var file = (@"
-                class C1
-                {
-                    int foo()
-                    {
-                        int bar = 42;
-                        return bar;
-                    }
-                }
-            ");
-            Assert.AreEqual(1, CsPurityAnalyzer.Analyze(file));
+            Assert.AreEqual(resultTable.GetPurity(fooDeclaration), Purity.Pure);
         }
 
         /// <summary>
@@ -61,9 +48,14 @@ namespace CsPurityTests
                     class TestClass { }
                 }
             ");
-            Assert.AreEqual(0, CsPurityAnalyzer.Analyze(file1));
-            Assert.AreEqual(0, CsPurityAnalyzer.Analyze(file2));
-            Assert.AreEqual(0, CsPurityAnalyzer.Analyze(file3));
+
+            LookupTable result1 = Analyzer.Analyze(file1);
+            LookupTable result2 = Analyzer.Analyze(file2);
+            LookupTable result3 = Analyzer.Analyze(file3);
+
+            Assert.IsFalse(result1.table.AsEnumerable().Any());
+            Assert.IsFalse(result2.table.AsEnumerable().Any());
+            Assert.IsFalse(result3.table.AsEnumerable().Any());
         }
 
         /// <summary>
@@ -85,7 +77,7 @@ namespace CsPurityTests
                     }
                 }
             ");
-            Assert.AreEqual(1, CsPurityAnalyzer.Analyze(file));
+            Analyzer.Analyze(file);
         }
 
         [TestMethod]
