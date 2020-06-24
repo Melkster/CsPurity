@@ -7,7 +7,6 @@ using System.Collections.Generic;
 using System.Data;
 
 using static System.Console;
-using System.Runtime.CompilerServices;
 
 namespace CsPurity
 {
@@ -156,41 +155,20 @@ namespace CsPurity
 
         public bool ReadsStaticFieldOrProperty(MethodDeclarationSyntax method)
         {
-            IEnumerable<MemberAccessExpressionSyntax> memberAccessExpressions = method
+            IEnumerable<IdentifierNameSyntax> identifiers = method
                 .DescendantNodes()
-                .OfType<MemberAccessExpressionSyntax>();
-            foreach (var expression in memberAccessExpressions)
+                .OfType<IdentifierNameSyntax>();
+
+            foreach (var identifier in identifiers)
             {
-                ISymbol symbol = model.GetSymbolInfo(expression).Symbol;
-                bool isStatic = symbol.IsStatic;
-                bool isField = symbol.Kind == SymbolKind.Field;
-                bool isProperty = symbol.Kind == SymbolKind.Property;
-                bool isMethod = symbol.Kind == SymbolKind.Method;
-                if (isStatic && (isField || isProperty) && !isMethod) return true;
-            }
-
-            if (memberAccessExpressions.Any()) return false;
-
-            IEnumerable<ExpressionStatementSyntax> expressionStatements = method
-                .DescendantNodes()
-                .OfType<ExpressionStatementSyntax>();
-
-            foreach (var expression in expressionStatements)
-            {
-                //IdentifierNameSyntax identifier = expression
-                var identifier = expression
-                    .DescendantNodes()
-                    .OfType<IdentifierNameSyntax>()
-                    .Single();
-
                 ISymbol symbol = model.GetSymbolInfo(identifier).Symbol;
                 bool isStatic = symbol.IsStatic;
                 bool isField = symbol.Kind == SymbolKind.Field;
                 bool isProperty = symbol.Kind == SymbolKind.Property;
                 bool isMethod = symbol.Kind == SymbolKind.Method;
+
                 if (isStatic && (isField || isProperty) && !isMethod) return true;
             }
-
             return false;
         }
 
