@@ -212,8 +212,8 @@ namespace CsPurity
     {
         public DataTable table = new DataTable();
         public WorkingSet workingSet;
-        readonly CompilationUnitSyntax root;
-        readonly SemanticModel model;
+        public readonly CompilationUnitSyntax root;
+        public readonly SemanticModel model;
 
         public LookupTable()
         {
