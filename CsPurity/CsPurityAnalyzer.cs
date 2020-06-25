@@ -17,100 +17,8 @@ namespace CsPurity
         Pure
     } // The order here matters as they are compared with `<`
 
-    public class CsPurityAnalyzer
-    {
-
-        /// <summary>
-        /// Analyzes the purity of the given text.
-        /// </summary>
-        /// <param name="text"></param>
-        /// <returns>The average purity of all methods in <paramref name="text"/></returns>
-        public static double Analyze(string text)
-        {
-            var result = new List<int>();
-            Analyzer analyzer = new Analyzer(text);
-            var tree = CSharpSyntaxTree.ParseText(text);
-            var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = Analyzer.GetSemanticModel(tree);
-            var methodDeclarations = root.DescendantNodes().OfType<MethodDeclarationSyntax>();
-
-            foreach (var methodDeclaration in methodDeclarations)
-            {
-                var identifierNames = methodDeclaration
-                    .DescendantNodes()
-                    .OfType<IdentifierNameSyntax>()
-                    .Where(i => i.Identifier.Text != "var"); // `var` also counts as IdentifierNameSyntax
-
-                foreach (var identifierName in identifierNames)
-                {
-                    var identifierSymbol = (VariableDeclaratorSyntax)model
-                        .GetSymbolInfo(identifierName)
-                        .Symbol // TODO: `.Symbol` can be null, for instance when the symbol is a class name
-                        .DeclaringSyntaxReferences
-                        .Single() // TODO: look at all references
-                        .GetSyntax();
-                    var methodAncestors = identifierSymbol.Ancestors().OfType<MethodDeclarationSyntax>();
-                    bool methodIsPure = false;
-
-                    if (methodAncestors.Any()) methodIsPure = methodAncestors.First() == methodDeclaration;
-                    result.Add(Convert.ToInt32(methodIsPure));
-                }
-            }
-
-            return result.Any() ? result.Average() : 0; // If input text has no methods purity is 0
-        }
-
-        static void Main(string[] args)
-        {
-            if (!args.Any())
-            {
-                WriteLine("Please provide path to C# file to be analyzed.");
-            }
-            else if (args.Contains("--help"))
-            {
-                WriteLine(@"
-                    Checks purity of C# source file.
-
-                    -s \t use this flag if input is the C# program as a string, rather than its filepath
-                ");
-            }
-            else if (args.Contains("-s"))
-            {
-                //WriteLine("-s was used as flag");
-                int textIndex = Array.IndexOf(args, "-s") + 1;
-                if (textIndex < args.Length)
-                {
-                    //WriteLine(args[textIndex]);
-                    string file = args[textIndex];
-                    WriteLine(Analyze(file));
-                }
-                else
-                {
-                    WriteLine("Missing program string to be parsed as an argument.");
-                }
-            }
-            else
-            {
-                try
-                {
-                    string file = System.IO.File.ReadAllText(args[0]);
-                    WriteLine(Analyze(file));
-                }
-                catch (System.IO.FileNotFoundException err)
-                {
-                    WriteLine(err.Message);
-                }
-                catch
-                {
-                    WriteLine($"Something went wrong when reading the file {args[0]}");
-                }
-            }
-        }
-    }
-
     public class Analyzer
     {
-
         readonly public CompilationUnitSyntax root;
         readonly public SemanticModel model;
         readonly public LookupTable lookupTable;
@@ -123,6 +31,13 @@ namespace CsPurity
             this.lookupTable = new LookupTable(root, model);
         }
 
+        /// <summary>
+        /// Analyzes the purity of the given text.
+        /// </summary>
+        /// <param name="text"></param>
+        /// <returns>A LookupTable containing each method in <paramref
+        /// name="text"/>, its dependency set as well as its purity level
+        /// </returns>
         public static LookupTable Analyze(string text)
         {
             Analyzer analyzer = new Analyzer(text);
@@ -183,6 +98,52 @@ namespace CsPurity
                 .AddSyntaxTrees(tree)
                 .GetSemanticModel(tree);
             return model;
+        }
+
+        static void Main(string[] args)
+        {
+            if (!args.Any())
+            {
+                WriteLine("Please provide path to C# file to be analyzed.");
+            }
+            else if (args.Contains("--help"))
+            {
+                WriteLine(@"
+                    Checks purity of C# source file.
+
+                    -s \t use this flag if input is the C# program as a string, rather than its filepath
+                ");
+            }
+            else if (args.Contains("-s"))
+            {
+                //WriteLine("-s was used as flag");
+                int textIndex = Array.IndexOf(args, "-s") + 1;
+                if (textIndex < args.Length)
+                {
+                    string file = args[textIndex];
+                    WriteLine(Analyze(file).ToStringNoDependencySet());
+                }
+                else
+                {
+                    WriteLine("Missing program string to be parsed as an argument.");
+                }
+            }
+            else
+            {
+                try
+                {
+                    string file = System.IO.File.ReadAllText(args[0]);
+                    WriteLine(Analyze(file).ToStringNoDependencySet());
+                }
+                catch (System.IO.FileNotFoundException err)
+                {
+                    WriteLine(err.Message);
+                }
+                catch
+                {
+                    WriteLine($"Something went wrong when reading the file {args[0]}");
+                }
+            }
         }
     }
 
@@ -416,13 +377,14 @@ namespace CsPurity
                     }
                     else if (item is List<MethodDeclarationSyntax>)
                     {
+                        List<string> resultList = new List<string>();
                         var dependencies = (List<MethodDeclarationSyntax>)item;
                         foreach (var dependency in dependencies)
                         {
-                            if (dependency == null) result += "-";
-                            else result += dependency.Identifier;
-                            result += ", ";
+                            if (dependency == null) resultList.Add("-");
+                            else resultList.Add(dependency.Identifier.ToString());
                         }
+                        result += String.Join(", ", resultList);
                     }
                     else
                     {
@@ -431,6 +393,18 @@ namespace CsPurity
                     result += " | ";
                 }
                 result += "\n";
+            }
+            return result;
+        }
+
+        public string ToStringNoDependencySet()
+        {
+            string result = "";
+            foreach (var row in table.AsEnumerable())
+            {
+                var identifier = row.Field<MethodDeclarationSyntax>("identifier").Identifier;
+                var purity = row.Field<Purity>("purity");
+                result += identifier + ":\t" + Enum.GetName(typeof(Purity), purity) + "\n";
             }
             return result;
         }
