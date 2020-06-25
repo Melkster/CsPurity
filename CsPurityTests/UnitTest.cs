@@ -242,11 +242,23 @@ namespace CsPurityTests
                     {
                         return C2.bar();
                     }
+
+                    public int foz()
+                    {
+                        return 1;
+                    }
                 }
 
                 class C2
                 {
                     public static List<int> bar() {
+                        return C2.baz();
+                    }
+
+                    public static List<int> baz() {
+                        List<int> l = new List<int>();
+                        l.Add(1);
+                        var c = l.Contains(1);
                         return l;
                     }
                 }
@@ -254,10 +266,14 @@ namespace CsPurityTests
             LookupTable resultTable = Analyzer.Analyze(file);
 
             var fooDeclaration = resultTable.GetMethodByName("foo");
+            var fozDeclaration = resultTable.GetMethodByName("foz");
             var barDeclaration = resultTable.GetMethodByName("bar");
+            var bazDeclaration = resultTable.GetMethodByName("baz");
 
             Assert.IsTrue(resultTable.GetPurity(fooDeclaration) == Purity.Unknown);
+            Assert.IsTrue(resultTable.GetPurity(fozDeclaration) == Purity.Pure);
             Assert.IsTrue(resultTable.GetPurity(barDeclaration) == Purity.Unknown);
+            Assert.IsTrue(resultTable.GetPurity(bazDeclaration) == Purity.Unknown);
         }
     }
 
@@ -287,7 +303,7 @@ namespace CsPurityTests
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
-            var fooDependencies = lt.GetDependencies(fooDeclaration);
+            var fooDependencies = lt.CalculateDependencies(fooDeclaration);
             var expectedResult = root.DescendantNodes().OfType<MethodDeclarationSyntax>().Last();
             var expectedResultList = new List<MethodDeclarationSyntax> { expectedResult };
 
@@ -328,7 +344,7 @@ namespace CsPurityTests
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
-            var fooDependencies = lt.GetDependencies(fooDeclaration);
+            var fooDependencies = lt.CalculateDependencies(fooDeclaration);
             var expectedResults = root
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
@@ -371,7 +387,7 @@ namespace CsPurityTests
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
-            var fooDependencies = lt.GetDependencies(fooDeclaration);
+            var fooDependencies = lt.CalculateDependencies(fooDeclaration);
             var expectedResults = root
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
@@ -424,7 +440,7 @@ namespace CsPurityTests
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
-            var fooDependencies = lt.GetDependencies(fooDeclaration);
+            var fooDependencies = lt.CalculateDependencies(fooDeclaration);
             var expectedResults = root
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
@@ -466,7 +482,7 @@ namespace CsPurityTests
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
-            var fooDependencies = lt.GetDependencies(fooDeclaration);
+            var fooDependencies = lt.CalculateDependencies(fooDeclaration);
             var expectedResults = root
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
@@ -512,7 +528,7 @@ namespace CsPurityTests
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
-            var fooDependencies = lt.GetDependencies(fooDeclaration);
+            var fooDependencies = lt.CalculateDependencies(fooDeclaration);
             var expectedResults = root
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
@@ -555,7 +571,7 @@ namespace CsPurityTests
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
-            var fooDependencies = lt.GetDependencies(fooDeclaration);
+            var fooDependencies = lt.CalculateDependencies(fooDeclaration);
             var expectedResults = root
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
@@ -588,7 +604,7 @@ namespace CsPurityTests
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
-            var fooDependencies = lt.GetDependencies(fooDeclaration);
+            var fooDependencies = lt.CalculateDependencies(fooDeclaration);
             var expectedResultList = new List<MethodDeclarationSyntax> { null };
 
             Assert.IsTrue(

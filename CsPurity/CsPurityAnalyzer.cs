@@ -54,8 +54,7 @@ namespace CsPurity
                 {
                     // Perform checks:
 
-                    // null dependency means unknown purity
-                    if (table.GetDependencies(method).Contains(null))
+                    if (table.GetPurity(method) == Purity.Unknown)
                     {
                         table.SetPurity(method, Purity.Unknown);
                         table.PropagatePurity(method);
@@ -175,16 +174,26 @@ namespace CsPurity
             this.workingSet = new WorkingSet(this);
         }
 
+
+        /// <summary>
+        /// Builds the lookup table and calculates each method's dependency
+        /// set.
+        ///
+        /// Because unknown methods don't have a MethodDeclarationSyntax,
+        /// unknown methods are discarded and their immediate callers' purity
+        /// are set to Unknown.
+        /// </summary>
         public void BuildLookupTable()
         {
             var methodDeclarations = root.DescendantNodes().OfType<MethodDeclarationSyntax>();
             foreach (var methodDeclaration in methodDeclarations)
             {
                 AddMethod(methodDeclaration);
-                var dependencies = GetDependencies(methodDeclaration);
+                var dependencies = CalculateDependencies(methodDeclaration);
                 foreach (var dependency in dependencies)
                 {
-                    AddDependency(methodDeclaration, dependency);
+                    if (dependency == null) SetPurity(methodDeclaration, Purity.Unknown);
+                    else AddDependency(methodDeclaration, dependency);
                 }
             }
         }
@@ -204,6 +213,11 @@ namespace CsPurity
                 .GetSyntax();
         }
 
+        public List<MethodDeclarationSyntax> GetDependencies(MethodDeclarationSyntax method)
+        {
+            return (List<MethodDeclarationSyntax>)GetMethodRow(method)["dependencies"];
+        }
+
         /// <summary>
         /// Recursively computes a list of all unique methods that a method
         /// depends on
@@ -215,7 +229,7 @@ namespace CsPurity
         /// implementation was not found, that method is represented as null in
         /// the list.
         /// </returns>
-        public List<MethodDeclarationSyntax> GetDependencies(MethodDeclarationSyntax methodDeclaration)
+        public List<MethodDeclarationSyntax> CalculateDependencies(MethodDeclarationSyntax methodDeclaration)
         {
             List<MethodDeclarationSyntax> results = new List<MethodDeclarationSyntax>();
             if (methodDeclaration == null)
@@ -232,21 +246,20 @@ namespace CsPurity
             {
                 MethodDeclarationSyntax miDeclaration = GetMethodDeclaration(mi);
                 results.Add(miDeclaration);
-                results = results.Union(GetDependencies(miDeclaration)).ToList();
+                results = results.Union(CalculateDependencies(miDeclaration)).ToList();
             }
             return results;
         }
 
         /// <summary>
-        /// Adds a dependency for a method to the lookup table
+        /// Adds a dependency for a method to the lookup table.
         /// </summary>
         /// <param name="method">The method to add a dependency to</param>
         /// <param name="dependsOnNode">The method that methodNode depends on</param>
         public void AddDependency(MethodDeclarationSyntax method, MethodDeclarationSyntax dependsOnNode)
         {
             AddMethod(method);
-            if (dependsOnNode == null) SetPurity(method, Purity.Unknown);
-            else AddMethod(dependsOnNode);
+            AddMethod(dependsOnNode);
             DataRow row = table
                 .AsEnumerable()
                 .Where(row => row["identifier"] == method)
