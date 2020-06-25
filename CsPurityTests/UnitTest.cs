@@ -231,6 +231,34 @@ namespace CsPurityTests
             Assert.AreEqual(resultTable.GetPurity(bazDeclaration), Purity.Impure);
             Assert.AreEqual(resultTable.GetPurity(fozDeclaration), Purity.Pure);
         }
+
+        [TestMethod]
+        public void TestAnalyzeUnknownPurity()
+        {
+            var file = (@"
+                class C1
+                {
+                    public List<int> foo()
+                    {
+                        return C2.bar();
+                    }
+                }
+
+                class C2
+                {
+                    public static List<int> bar() {
+                        return l;
+                    }
+                }
+            ");
+            LookupTable resultTable = Analyzer.Analyze(file);
+
+            var fooDeclaration = resultTable.GetMethodByName("foo");
+            var barDeclaration = resultTable.GetMethodByName("bar");
+
+            Assert.IsTrue(resultTable.GetPurity(fooDeclaration) == Purity.Unknown);
+            Assert.IsTrue(resultTable.GetPurity(barDeclaration) == Purity.Unknown);
+        }
     }
 
     [TestClass]
