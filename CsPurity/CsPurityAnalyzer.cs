@@ -204,13 +204,14 @@ namespace CsPurity
         /// </summary>
         public MethodDeclarationSyntax GetMethodDeclaration(InvocationExpressionSyntax methodInvocation)
         {
+            ISymbol symbol = model.GetSymbolInfo(methodInvocation).Symbol;
+            if (symbol == null) return null;
+
+            var declaringReferences = symbol.DeclaringSyntaxReferences;
+            if (declaringReferences.Length < 1) return null;
+
             // not sure if this cast from SyntaxNode to MethodDeclarationSyntax always works
-            return (MethodDeclarationSyntax)model
-                .GetSymbolInfo(methodInvocation)
-                .Symbol
-                ?.DeclaringSyntaxReferences
-                .Single()
-                .GetSyntax();
+            return (MethodDeclarationSyntax)declaringReferences.Single().GetSyntax();
         }
 
         public List<MethodDeclarationSyntax> GetDependencies(MethodDeclarationSyntax method)

@@ -188,37 +188,39 @@ namespace CsPurityTests
         [TestMethod]
         public void TestAnalyze()
         {
-            var file = (@"
-                class C1
-                {
-                    int foo()
-                    {
-                        C2 c2 = new C2();
-                        return c2.foz();
-                    }
+            string file = System.IO.File.ReadAllText("../../../../CsPurity/CsPurityAnalyzer.cs");
+            WriteLine(Analyzer.Analyze(file).ToStringNoDependencySet());
+            //var file = (@"
+            //    class C1
+            //    {
+            //        int foo()
+            //        {
+            //            C2 c2 = new C2();
+            //            return c2.foz();
+            //        }
 
-                    int bar()
-                    {
-                        C2.baz();
-                        return 42;
-                    }
-                }
+            //        int bar()
+            //        {
+            //            C2.baz();
+            //            return 42;
+            //        }
+            //    }
 
-                class C2
-                {
-                    public static int value = 42;
+            //    class C2
+            //    {
+            //        public static int value = 42;
 
-                    public static void baz()
-                    {
-                        value = 3;
-                        value++;
-                    }
+            //        public static void baz()
+            //        {
+            //            value = 3;
+            //            value++;
+            //        }
 
-                    public int foz() {
-                        return 1;
-                    }
-                }
-            ");
+            //        public int foz() {
+            //            return 1;
+            //        }
+            //    }
+            //");
             LookupTable resultTable = Analyzer.Analyze(file);
 
             var fooDeclaration = resultTable.GetMethodByName("foo");
