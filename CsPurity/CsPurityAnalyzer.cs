@@ -81,6 +81,8 @@ namespace CsPurity
             foreach (var identifier in identifiers)
             {
                 ISymbol symbol = model.GetSymbolInfo(identifier).Symbol;
+                if (symbol == null) break;
+
                 bool isStatic = symbol.IsStatic;
                 bool isField = symbol.Kind == SymbolKind.Field;
                 bool isProperty = symbol.Kind == SymbolKind.Property;
