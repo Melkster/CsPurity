@@ -188,39 +188,37 @@ namespace CsPurityTests
         [TestMethod]
         public void TestAnalyze()
         {
-            string file = System.IO.File.ReadAllText("../../../../CsPurity/CsPurityAnalyzer.cs");
-            WriteLine(Analyzer.Analyze(file).ToStringNoDependencySet());
-            //var file = (@"
-            //    class C1
-            //    {
-            //        int foo()
-            //        {
-            //            C2 c2 = new C2();
-            //            return c2.foz();
-            //        }
+            var file = (@"
+                class C1
+                {
+                    int foo()
+                    {
+                        C2 c2 = new C2();
+                        return c2.foz();
+                    }
 
-            //        int bar()
-            //        {
-            //            C2.baz();
-            //            return 42;
-            //        }
-            //    }
+                    int bar()
+                    {
+                        C2.baz();
+                        return 42;
+                    }
+                }
 
-            //    class C2
-            //    {
-            //        public static int value = 42;
+                class C2
+                {
+                    public static int value = 42;
 
-            //        public static void baz()
-            //        {
-            //            value = 3;
-            //            value++;
-            //        }
+                    public static void baz()
+                    {
+                        value = 3;
+                        value++;
+                    }
 
-            //        public int foz() {
-            //            return 1;
-            //        }
-            //    }
-            //");
+                    public int foz() {
+                        return 1;
+                    }
+                }
+            ");
             LookupTable resultTable = Analyzer.Analyze(file);
 
             var fooDeclaration = resultTable.GetMethodByName("foo");
@@ -232,6 +230,115 @@ namespace CsPurityTests
             Assert.AreEqual(resultTable.GetPurity(barDeclaration), Purity.Impure);
             Assert.AreEqual(resultTable.GetPurity(bazDeclaration), Purity.Impure);
             Assert.AreEqual(resultTable.GetPurity(fozDeclaration), Purity.Pure);
+        }
+
+        [TestMethod]
+        public void TestAnalyze2()
+        {
+            var file = (@"
+                public class LinkedList
+                {
+                    private Node head;
+                    private Node tail;
+
+                    // Returns length of list
+                    public static int Length(LinkedList list)
+                    {
+                        Node current = list.head;
+                        int length = 0;
+
+                        while (current != null)
+                        {
+                            length++;
+                            current = current.next;
+                        }
+                        return length;
+                    }
+
+                    // Appends data to the list
+                    public void Add(Object data)
+                    {
+                        if (LinkedList.Length(this) == 0)
+                        {
+                            head = new Node(data);
+                            tail = head;
+                        }
+                        else
+                        {
+                            Node addedNode = new Node(data);
+                            tail.next = addedNode;
+                            tail = addedNode;
+                        }
+                    }
+
+                    // Removes item at index from list.
+                    // Assumes that list is non-empty and
+                    // that index is non-negative and less
+                    // than list's length
+                    static public void Remove(int index, LinkedList list)
+                    {
+                        if (index == 0)
+                        {
+                            list.head = list.head.next;
+                        }
+                        else
+                        {
+                            Node pre = list.head;
+
+                            for (int i = 0; i < index - 1; i++)
+                            {
+                                pre = pre.next;
+                            }
+                            pre.next = pre.next.next;
+                        }
+                    }
+
+                    public static void PrintListLength(LinkedList list)
+                    {
+                        Console.WriteLine(Length(list));
+                    }
+
+                    public void PrintLength()
+                    {
+                        PrintListLength(this);
+                    }
+
+                    private class Node
+                    {
+                        public Node next;
+                        public Object data;
+
+                        public Node() { }
+
+                        public Node(Object data)
+                        {
+                            this.data = data;
+                        }
+                    }
+                }
+            ");
+            LookupTable resultTable = Analyzer.Analyze(file);
+
+            var lengthDeclaration = resultTable.GetMethodByName("Length");
+            var addDeclaration = resultTable.GetMethodByName("Add");
+            var removeDeclaration = resultTable.GetMethodByName("Remove");
+            var printListLengthDeclaration = resultTable.GetMethodByName("PrintListLength");
+            var printLengthDeclaration = resultTable.GetMethodByName("PrintLength");
+
+            //TODO: Implement checks for for uncommented purities
+            Assert.AreEqual(resultTable.GetPurity(lengthDeclaration), Purity.Pure);
+
+            Assert.AreEqual(resultTable.GetPurity(addDeclaration), Purity.Pure);
+            //Assert.AreEqual(resultTable.GetPurity(addDeclaration), Purity.LocallyImpure);
+
+            Assert.AreEqual(resultTable.GetPurity(removeDeclaration), Purity.Pure);
+            //Assert.AreEqual(resultTable.GetPurity(removeDeclaration), Purity.ParametricallyImpure);
+
+            Assert.AreEqual(resultTable.GetPurity(printListLengthDeclaration), Purity.Unknown);
+            //Assert.AreEqual(resultTable.GetPurity(printListLengthDeclaration), Purity.Impure);
+
+            Assert.AreEqual(resultTable.GetPurity(printLengthDeclaration), Purity.Unknown);
+            //Assert.AreEqual(resultTable.GetPurity(printLengthDeclaration), Purity.Impure);
         }
 
         [TestMethod]
