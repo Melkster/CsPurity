@@ -231,6 +231,159 @@ namespace CsPurityTests
             Assert.AreEqual(resultTable.GetPurity(bazDeclaration), Purity.Impure);
             Assert.AreEqual(resultTable.GetPurity(fozDeclaration), Purity.Pure);
         }
+
+        [TestMethod]
+        public void TestAnalyze2()
+        {
+            var file = (@"
+                public class LinkedList
+                {
+                    private Node head;
+                    private Node tail;
+
+                    // Returns length of list
+                    public static int Length(LinkedList list)
+                    {
+                        Node current = list.head;
+                        int length = 0;
+
+                        while (current != null)
+                        {
+                            length++;
+                            current = current.next;
+                        }
+                        return length;
+                    }
+
+                    // Appends data to the list
+                    public void Add(Object data)
+                    {
+                        if (LinkedList.Length(this) == 0)
+                        {
+                            head = new Node(data);
+                            tail = head;
+                        }
+                        else
+                        {
+                            Node addedNode = new Node(data);
+                            tail.next = addedNode;
+                            tail = addedNode;
+                        }
+                    }
+
+                    // Removes item at index from list.
+                    // Assumes that list is non-empty and
+                    // that index is non-negative and less
+                    // than list's length
+                    static public void Remove(int index, LinkedList list)
+                    {
+                        if (index == 0)
+                        {
+                            list.head = list.head.next;
+                        }
+                        else
+                        {
+                            Node pre = list.head;
+
+                            for (int i = 0; i < index - 1; i++)
+                            {
+                                pre = pre.next;
+                            }
+                            pre.next = pre.next.next;
+                        }
+                    }
+
+                    public static void PrintListLength(LinkedList list)
+                    {
+                        Console.WriteLine(Length(list));
+                    }
+
+                    public void PrintLength()
+                    {
+                        PrintListLength(this);
+                    }
+
+                    private class Node
+                    {
+                        public Node next;
+                        public Object data;
+
+                        public Node() { }
+
+                        public Node(Object data)
+                        {
+                            this.data = data;
+                        }
+                    }
+                }
+            ");
+            LookupTable resultTable = Analyzer.Analyze(file);
+
+            var lengthDeclaration = resultTable.GetMethodByName("Length");
+            var addDeclaration = resultTable.GetMethodByName("Add");
+            var removeDeclaration = resultTable.GetMethodByName("Remove");
+            var printListLengthDeclaration = resultTable.GetMethodByName("PrintListLength");
+            var printLengthDeclaration = resultTable.GetMethodByName("PrintLength");
+
+            //TODO: Implement checks for for uncommented purities
+            Assert.AreEqual(resultTable.GetPurity(lengthDeclaration), Purity.Pure);
+
+            Assert.AreEqual(resultTable.GetPurity(addDeclaration), Purity.Pure);
+            //Assert.AreEqual(resultTable.GetPurity(addDeclaration), Purity.LocallyImpure);
+
+            Assert.AreEqual(resultTable.GetPurity(removeDeclaration), Purity.Pure);
+            //Assert.AreEqual(resultTable.GetPurity(removeDeclaration), Purity.ParametricallyImpure);
+
+            Assert.AreEqual(resultTable.GetPurity(printListLengthDeclaration), Purity.Unknown);
+            //Assert.AreEqual(resultTable.GetPurity(printListLengthDeclaration), Purity.Impure);
+
+            Assert.AreEqual(resultTable.GetPurity(printLengthDeclaration), Purity.Unknown);
+            //Assert.AreEqual(resultTable.GetPurity(printLengthDeclaration), Purity.Impure);
+        }
+
+        [TestMethod]
+        public void TestAnalyzeUnknownPurity()
+        {
+            var file = (@"
+                class C1
+                {
+                    public List<int> foo()
+                    {
+                        return C2.bar();
+                    }
+
+                    public int foz()
+                    {
+                        return 1;
+                    }
+                }
+
+                class C2
+                {
+                    public static List<int> bar() {
+                        return C2.baz();
+                    }
+
+                    public static List<int> baz() {
+                        List<int> l = new List<int>();
+                        l.Add(1);
+                        var c = l.Contains(1);
+                        return l;
+                    }
+                }
+            ");
+            LookupTable resultTable = Analyzer.Analyze(file);
+
+            var fooDeclaration = resultTable.GetMethodByName("foo");
+            var fozDeclaration = resultTable.GetMethodByName("foz");
+            var barDeclaration = resultTable.GetMethodByName("bar");
+            var bazDeclaration = resultTable.GetMethodByName("baz");
+
+            Assert.IsTrue(resultTable.GetPurity(fooDeclaration) == Purity.Unknown);
+            Assert.IsTrue(resultTable.GetPurity(fozDeclaration) == Purity.Pure);
+            Assert.IsTrue(resultTable.GetPurity(barDeclaration) == Purity.Unknown);
+            Assert.IsTrue(resultTable.GetPurity(bazDeclaration) == Purity.Unknown);
+        }
     }
 
     [TestClass]
@@ -259,7 +412,7 @@ namespace CsPurityTests
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
-            var fooDependencies = lt.GetDependencies(fooDeclaration);
+            var fooDependencies = lt.CalculateDependencies(fooDeclaration);
             var expectedResult = root.DescendantNodes().OfType<MethodDeclarationSyntax>().Last();
             var expectedResultList = new List<MethodDeclarationSyntax> { expectedResult };
 
@@ -300,7 +453,7 @@ namespace CsPurityTests
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
-            var fooDependencies = lt.GetDependencies(fooDeclaration);
+            var fooDependencies = lt.CalculateDependencies(fooDeclaration);
             var expectedResults = root
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
@@ -343,7 +496,7 @@ namespace CsPurityTests
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
-            var fooDependencies = lt.GetDependencies(fooDeclaration);
+            var fooDependencies = lt.CalculateDependencies(fooDeclaration);
             var expectedResults = root
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
@@ -396,7 +549,7 @@ namespace CsPurityTests
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
-            var fooDependencies = lt.GetDependencies(fooDeclaration);
+            var fooDependencies = lt.CalculateDependencies(fooDeclaration);
             var expectedResults = root
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
@@ -438,7 +591,7 @@ namespace CsPurityTests
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
-            var fooDependencies = lt.GetDependencies(fooDeclaration);
+            var fooDependencies = lt.CalculateDependencies(fooDeclaration);
             var expectedResults = root
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
@@ -484,7 +637,7 @@ namespace CsPurityTests
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
-            var fooDependencies = lt.GetDependencies(fooDeclaration);
+            var fooDependencies = lt.CalculateDependencies(fooDeclaration);
             var expectedResults = root
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
@@ -527,7 +680,7 @@ namespace CsPurityTests
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
-            var fooDependencies = lt.GetDependencies(fooDeclaration);
+            var fooDependencies = lt.CalculateDependencies(fooDeclaration);
             var expectedResults = root
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
@@ -560,7 +713,7 @@ namespace CsPurityTests
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
-            var fooDependencies = lt.GetDependencies(fooDeclaration);
+            var fooDependencies = lt.CalculateDependencies(fooDeclaration);
             var expectedResultList = new List<MethodDeclarationSyntax> { null };
 
             Assert.IsTrue(

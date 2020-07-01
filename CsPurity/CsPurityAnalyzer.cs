@@ -13,6 +13,7 @@ namespace CsPurity
     public enum Purity
     {
         Impure,
+        Unknown,
         ParametricallyImpure,
         Pure
     } // The order here matters as they are compared with `<`
@@ -52,15 +53,18 @@ namespace CsPurity
                 foreach (var method in workingSet)
                 {
                     // Perform checks:
-                    if (analyzer.ReadsStaticFieldOrProperty(method))
+
+                    if (table.GetPurity(method) == Purity.Unknown)
+                    {
+                        table.SetPurity(method, Purity.Unknown);
+                        table.PropagatePurity(method);
+                        tableModified = true;
+                    }
+                    else if (analyzer.ReadsStaticFieldOrProperty(method))
                     {
                         table.SetPurity(method, Purity.Impure);
-                        foreach (var caller in table.GetCallers(method))
-                        {
-                            table.SetPurity(caller, Purity.Impure);
-                            table.RemoveDependency(caller, method);
-                            tableModified = true;
-                        }
+                        table.PropagatePurity(method);
+                        tableModified = true;
                     }
                 }
                 workingSet.Calculate();
@@ -77,6 +81,8 @@ namespace CsPurity
             foreach (var identifier in identifiers)
             {
                 ISymbol symbol = model.GetSymbolInfo(identifier).Symbol;
+                if (symbol == null) break;
+
                 bool isStatic = symbol.IsStatic;
                 bool isField = symbol.Kind == SymbolKind.Field;
                 bool isProperty = symbol.Kind == SymbolKind.Property;
@@ -170,16 +176,26 @@ namespace CsPurity
             this.workingSet = new WorkingSet(this);
         }
 
+
+        /// <summary>
+        /// Builds the lookup table and calculates each method's dependency
+        /// set.
+        ///
+        /// Because unknown methods don't have a MethodDeclarationSyntax,
+        /// unknown methods are discarded and their immediate callers' purity
+        /// are set to Unknown.
+        /// </summary>
         public void BuildLookupTable()
         {
             var methodDeclarations = root.DescendantNodes().OfType<MethodDeclarationSyntax>();
             foreach (var methodDeclaration in methodDeclarations)
             {
                 AddMethod(methodDeclaration);
-                var dependencies = GetDependencies(methodDeclaration);
+                var dependencies = CalculateDependencies(methodDeclaration);
                 foreach (var dependency in dependencies)
                 {
-                    AddDependency(methodDeclaration, dependency);
+                    if (dependency == null) SetPurity(methodDeclaration, Purity.Unknown);
+                    else AddDependency(methodDeclaration, dependency);
                 }
             }
         }
@@ -190,13 +206,19 @@ namespace CsPurity
         /// </summary>
         public MethodDeclarationSyntax GetMethodDeclaration(InvocationExpressionSyntax methodInvocation)
         {
+            ISymbol symbol = model.GetSymbolInfo(methodInvocation).Symbol;
+            if (symbol == null) return null;
+
+            var declaringReferences = symbol.DeclaringSyntaxReferences;
+            if (declaringReferences.Length < 1) return null;
+
             // not sure if this cast from SyntaxNode to MethodDeclarationSyntax always works
-            return (MethodDeclarationSyntax)model
-                .GetSymbolInfo(methodInvocation)
-                .Symbol
-                ?.DeclaringSyntaxReferences
-                .Single()
-                .GetSyntax();
+            return (MethodDeclarationSyntax)declaringReferences.Single().GetSyntax();
+        }
+
+        public List<MethodDeclarationSyntax> GetDependencies(MethodDeclarationSyntax method)
+        {
+            return (List<MethodDeclarationSyntax>)GetMethodRow(method)["dependencies"];
         }
 
         /// <summary>
@@ -210,7 +232,7 @@ namespace CsPurity
         /// implementation was not found, that method is represented as null in
         /// the list.
         /// </returns>
-        public List<MethodDeclarationSyntax> GetDependencies(MethodDeclarationSyntax methodDeclaration)
+        public List<MethodDeclarationSyntax> CalculateDependencies(MethodDeclarationSyntax methodDeclaration)
         {
             List<MethodDeclarationSyntax> results = new List<MethodDeclarationSyntax>();
             if (methodDeclaration == null)
@@ -227,23 +249,23 @@ namespace CsPurity
             {
                 MethodDeclarationSyntax miDeclaration = GetMethodDeclaration(mi);
                 results.Add(miDeclaration);
-                results = results.Union(GetDependencies(miDeclaration)).ToList();
+                results = results.Union(CalculateDependencies(miDeclaration)).ToList();
             }
             return results;
         }
 
         /// <summary>
-        /// Adds a dependency for a method to the lookup table
+        /// Adds a dependency for a method to the lookup table.
         /// </summary>
-        /// <param name="methodNode">The method to add a dependency to</param>
+        /// <param name="method">The method to add a dependency to</param>
         /// <param name="dependsOnNode">The method that methodNode depends on</param>
-        public void AddDependency(MethodDeclarationSyntax methodNode, MethodDeclarationSyntax dependsOnNode)
+        public void AddDependency(MethodDeclarationSyntax method, MethodDeclarationSyntax dependsOnNode)
         {
-            AddMethod(methodNode);
+            AddMethod(method);
             AddMethod(dependsOnNode);
             DataRow row = table
                 .AsEnumerable()
-                .Where(row => row["identifier"] == methodNode)
+                .Where(row => row["identifier"] == method)
                 .Single();
             List<MethodDeclarationSyntax> dependencies = row
                 .Field<List<MethodDeclarationSyntax>>("dependencies");
@@ -318,6 +340,16 @@ namespace CsPurity
         public void SetPurity(MethodDeclarationSyntax method, Purity purity)
         {
             GetMethodRow(method)["purity"] = purity;
+        }
+
+        public void PropagatePurity(MethodDeclarationSyntax method)
+        {
+            Purity purity = GetPurity(method);
+            foreach (var caller in GetCallers(method))
+            {
+                SetPurity(caller, purity);
+                RemoveDependency(caller, method);
+            }
         }
 
         DataRow GetMethodRow(MethodDeclarationSyntax method)
@@ -421,6 +453,14 @@ namespace CsPurity
             Calculate();
         }
 
+
+        /// <summary>
+        /// Calculates the working set. The working set is the set of all
+        /// methods in the lookup table that have empty dependency sets. A
+        /// method can only be in the working set once, so if a method with
+        /// empty dependency set has already been in the working set, it is not
+        /// re-added.
+        /// </summary>
         public void Calculate()
         {
             this.Clear();
