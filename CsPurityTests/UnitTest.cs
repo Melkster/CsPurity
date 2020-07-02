@@ -124,13 +124,13 @@ namespace CsPurityTests
                 }
             ");
             Analyzer analyzer = new Analyzer(file);
-            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", analyzer.root);
-            var barDeclaration = HelpMethods.GetMethodDeclaration("bar", analyzer.root);
-            var fazDeclaration = HelpMethods.GetMethodDeclaration("faz", analyzer.root);
+            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", analyzer.root, analyzer.model);
+            var barDeclaration = HelpMethods.GetMethodDeclaration("bar", analyzer.root, analyzer.model);
+            var fazDeclaration = HelpMethods.GetMethodDeclaration("faz", analyzer.root, analyzer.model);
 
-            Assert.IsTrue(analyzer.ReadsStaticFieldOrProperty(fooDeclaration));
-            Assert.IsFalse(analyzer.ReadsStaticFieldOrProperty(barDeclaration));
-            Assert.IsFalse(analyzer.ReadsStaticFieldOrProperty(fazDeclaration));
+            Assert.IsTrue(fooDeclaration.ReadsStaticFieldOrProperty());
+            Assert.IsFalse(barDeclaration.ReadsStaticFieldOrProperty());
+            Assert.IsFalse(fazDeclaration.ReadsStaticFieldOrProperty());
         }
 
         [TestMethod]
@@ -150,9 +150,9 @@ namespace CsPurityTests
                 }
             ");
             Analyzer analyzer = new Analyzer(file);
-            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", analyzer.root);
+            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", analyzer.root, analyzer.model);
 
-            Assert.IsTrue(analyzer.ReadsStaticFieldOrProperty(fooDeclaration));
+            Assert.IsTrue(fooDeclaration.ReadsStaticFieldOrProperty());
         }
 
         // Implicitly static property means a non-static property pointing to a
@@ -180,9 +180,9 @@ namespace CsPurityTests
                 }
             ");
             Analyzer analyzer = new Analyzer(file);
-            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", analyzer.root);
+            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", analyzer.root, analyzer.model);
 
-            Assert.IsTrue(analyzer.ReadsStaticFieldOrProperty(fooDeclaration));
+            Assert.IsTrue(fooDeclaration.ReadsStaticFieldOrProperty());
         }
 
         [TestMethod]
@@ -748,11 +748,11 @@ namespace CsPurityTests
             LookupTable lookupTable1 = new LookupTable(root, model);
 
             LookupTable lookupTable2 = new LookupTable();
-            lookupTable2.AddMethod(HelpMethods.GetMethodDeclaration("foo", root));
-            lookupTable2.AddMethod(HelpMethods.GetMethodDeclaration("bar", root));
+            lookupTable2.AddMethod(HelpMethods.GetMethodDeclaration("foo", root, model));
+            lookupTable2.AddMethod(HelpMethods.GetMethodDeclaration("bar", root, model));
             lookupTable2.AddDependency(
-                HelpMethods.GetMethodDeclaration("foo", root),
-                HelpMethods.GetMethodDeclaration("bar", root)
+                HelpMethods.GetMethodDeclaration("foo", root, model),
+                HelpMethods.GetMethodDeclaration("bar", root, model)
             );
 
             Assert.IsTrue(HelpMethods.TablesAreEqual(lookupTable2.table, lookupTable1.table));
@@ -786,11 +786,11 @@ namespace CsPurityTests
             LookupTable lookupTable1 = new LookupTable(root, model);
 
             LookupTable lookupTable2 = new LookupTable();
-            lookupTable2.AddMethod(HelpMethods.GetMethodDeclaration("foo", root));
-            lookupTable2.AddMethod(HelpMethods.GetMethodDeclaration("bar", root));
+            lookupTable2.AddMethod(HelpMethods.GetMethodDeclaration("foo", root, model));
+            lookupTable2.AddMethod(HelpMethods.GetMethodDeclaration("bar", root, model));
             lookupTable2.AddDependency(
-                HelpMethods.GetMethodDeclaration("foo", root),
-                HelpMethods.GetMethodDeclaration("bar", root)
+                HelpMethods.GetMethodDeclaration("foo", root, model),
+                HelpMethods.GetMethodDeclaration("bar", root, model)
             );
 
             Assert.IsTrue(HelpMethods.TablesAreEqual(lookupTable2.table, lookupTable1.table));
@@ -808,11 +808,11 @@ namespace CsPurityTests
                     }
                 }
             ");
+            LookupTable lookupTable = new LookupTable();
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var methodDeclaration = HelpMethods.GetMethodDeclaration("foo", root);
+            var methodDeclaration = HelpMethods.GetMethodDeclaration("foo", root, lookupTable.model);
 
-            LookupTable lookupTable = new LookupTable();
             lookupTable.AddMethod(methodDeclaration);
 
             Assert.IsTrue(lookupTable.HasMethod(methodDeclaration));
@@ -1147,29 +1147,32 @@ namespace CsPurityTests
 
     public static class HelpMethods
     {
-        public static MethodDeclarationSyntax GetMethodDeclaration(
+        public static Method GetMethodDeclaration(
             string name,
-            SyntaxNode root
+            SyntaxNode root,
+            SemanticModel model
         )
         {
-            return root
+            var methodDeclaration = root
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
                 .Where(m => m.Identifier.Text == name)
                 .Single();
+            return new Method(methodDeclaration, model);
         }
 
-        public static MethodDeclarationSyntax GetMethodByName(
+        public static Method GetMethodByName(
             this LookupTable lookupTable,
             string name
         )
         {
-            return lookupTable
+            var methodDeclaration = lookupTable
                 .root
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
                 .Where(m => m.Identifier.Text == name)
                 .Single();
+            return new Method(methodDeclaration, lookupTable.model);
         }
 
         // Rows need to be in the same order in both tables
