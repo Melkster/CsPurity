@@ -93,6 +93,12 @@ namespace CsPurity
             return false;
         }
 
+        public bool IsBlackListed(MethodDeclarationSyntax method)
+        {
+            // TODO
+            return false;
+        }
+
         public static SemanticModel GetSemanticModel(SyntaxTree tree)
         {
             var model = CSharpCompilation.Create("assemblyName")
@@ -439,6 +445,50 @@ namespace CsPurity
                 result += identifier + ":\t" + Enum.GetName(typeof(Purity), purity) + "\n";
             }
             return result;
+        }
+    }
+
+    public class Method
+    {
+        public string identifier;
+        public MethodDeclarationSyntax declaration;
+        readonly SemanticModel model;
+
+        /// <summary>
+        /// If <paramref name="methodInvocation"/>'s declaration was found <see
+        /// cref="declaration"/> is set to that and  <see cref="identifier"/>
+        /// set to null instead.
+        ///
+        /// If no declaration was found, <see cref="declaration"/> is set to
+        /// null and <see cref="identifier"/> set to <paramref
+        /// name="methodInvocation"/>'s identifier instead.
+        /// <param name="methodInvocation"></param>
+        /// <param name="model"></param>
+        public Method(InvocationExpressionSyntax methodInvocation, SemanticModel model)
+        {
+            this.model = model;
+
+            ISymbol symbol = model.GetSymbolInfo(methodInvocation).Symbol;
+            if (symbol == null)
+            {
+                identifier = methodInvocation.Expression.ToString();
+                return;
+            };
+
+            var declaringReferences = symbol.DeclaringSyntaxReferences;
+            if (declaringReferences.Length < 1)
+            {
+                identifier = methodInvocation.Expression.ToString();
+                return;
+            };
+
+            // not sure if this cast from SyntaxNode to MethodDeclarationSyntax always works
+            declaration = (MethodDeclarationSyntax)declaringReferences.Single().GetSyntax();
+        }
+
+        public bool HasKnownDeclaration()
+        {
+            return declaration != null;
         }
     }
 

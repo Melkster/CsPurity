@@ -701,7 +701,7 @@ namespace CsPurityTests
             var file = (@"
                 class C1
                 {
-                    int foo()
+                    void foo()
                     {
                         Console.WriteLine();
                     }
@@ -1204,6 +1204,47 @@ namespace CsPurityTests
                 if (!list2.Contains(item)) return false;
             }
             return true;
+        }
+    }
+
+    [TestClass]
+    public class MethodTest
+    {
+        [TestMethod]
+        public void TestMethod()
+        {
+            var file = (@"
+                class C1
+                {
+                    void foo()
+                    {
+                        Console.WriteLine();
+                        C2.bar();
+                    }
+                }
+
+                class C2
+                {
+                    public static int bar()
+                    {
+                        return 2;
+                    }
+                }
+            ");
+            var tree = CSharpSyntaxTree.ParseText(file);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+            var model = Analyzer.GetSemanticModel(tree);
+
+            var clwInvocation = root.DescendantNodes().OfType<InvocationExpressionSyntax>().First();
+            var barInvocation = root.DescendantNodes().OfType<InvocationExpressionSyntax>().Last();
+
+            var clwMethod = new Method(clwInvocation, model);
+            var barMethod = new Method(barInvocation, model);
+
+            Assert.AreEqual(clwMethod.identifier, "Console.WriteLine");
+            Assert.AreEqual(clwMethod.declaration, null);
+            Assert.AreEqual(barMethod.identifier, null);
+            Assert.AreEqual(barMethod.declaration, HelpMethods.GetMethodDeclaration("bar", root));
         }
     }
 }
