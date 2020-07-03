@@ -172,15 +172,16 @@ namespace CsPurity
         /// </summary>
         public void BuildLookupTable()
         {
-            var methodDeclarations = root.DescendantNodes().OfType<Method>();
+            var methodDeclarations = root.DescendantNodes().OfType<MethodDeclarationSyntax>();
             foreach (var methodDeclaration in methodDeclarations)
             {
-                AddMethod(methodDeclaration);
-                var dependencies = CalculateDependencies(methodDeclaration);
+                Method method = new Method(methodDeclaration, model);
+                AddMethod(method);
+                var dependencies = CalculateDependencies(method);
                 foreach (var dependency in dependencies)
                 {
-                    if (dependency == null) SetPurity(methodDeclaration, Purity.Unknown);
-                    else AddDependency(methodDeclaration, dependency);
+                    if (dependency == null) SetPurity(method, Purity.Unknown);
+                    else AddDependency(method, dependency);
                 }
             }
         }
@@ -232,10 +233,10 @@ namespace CsPurity
                 .DescendantNodes()
                 .OfType<InvocationExpressionSyntax>();
             if (!methodInvocations.Any()) return results;
-            foreach (var mi in methodInvocations)
+            foreach (var invocation in methodInvocations)
             {
-                results.Add(method);
-                results = results.Union(CalculateDependencies(method)).ToList();
+                results.Add(new Method(invocation, model));
+                results = results.Union(CalculateDependencies(new Method(invocation, model))).ToList();
             }
             return results;
         }
@@ -288,13 +289,13 @@ namespace CsPurity
             row.Field<List<Method>>("dependencies").Remove(dependsOnNode);
         }
 
-        public bool HasDependency(Method methodNode, Method dependsOnNode)
+        public bool HasDependency(Method method, Method dependsOn)
         {
             return table
                 .AsEnumerable()
                 .Any(row =>
-                    row["identifier"] == methodNode &&
-                    row.Field<List<Method>>("dependencies").Contains(dependsOnNode)
+                    row["identifier"].Equals(method) &&
+                    row.Field<List<Method>>("dependencies").Contains(dependsOn)
                 );
         }
 
@@ -340,9 +341,11 @@ namespace CsPurity
 
         DataRow GetMethodRow(Method method)
         {
+            var m1 = table.AsEnumerable().First().Field<Method>("identifier");
+            var foo = table.AsEnumerable().First().Equals(method);
             return table
                 .AsEnumerable()
-                .Where(row => row["identifier"] == method)
+                .Where(row => row["identifier"].Equals(method))
                 .Single();
         }
 
@@ -410,7 +413,7 @@ namespace CsPurity
                     }
                     result += " | ";
                 }
-                result += "\n";
+                result += "; \n";
             }
             return result;
         }
@@ -502,12 +505,18 @@ namespace CsPurity
 
         public override bool Equals(Object obj)
         {
-            if (obj! is Method) return false;
+            if (!(obj is Method)) return false;
             else
             {
                 Method m = obj as Method;
                 return m.identifier == identifier || m.declaration == declaration;
             };
+        }
+
+        public override int GetHashCode()
+        {
+            if (HasKnownDeclaration()) return declaration.GetHashCode();
+            else return identifier.GetHashCode();
         }
 
         public override string ToString()
