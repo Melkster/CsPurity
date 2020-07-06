@@ -252,7 +252,7 @@ namespace CsPurity
             AddMethod(dependsOnNode);
             DataRow row = table
                 .AsEnumerable()
-                .Where(row => row["identifier"] == method)
+                .Where(row => row["identifier"].Equals(method))
                 .Single();
             List<Method> dependencies = row
                 .Field<List<Method>>("dependencies");
@@ -284,7 +284,7 @@ namespace CsPurity
             }
             DataRow row = table
                 .AsEnumerable()
-                .Where(row => row["identifier"] == methodNode)
+                .Where(row => row["identifier"].Equals(methodNode))
                 .Single();
             row.Field<List<Method>>("dependencies").Remove(dependsOnNode);
         }
@@ -316,7 +316,7 @@ namespace CsPurity
         {
             return table
                 .AsEnumerable()
-                .Any(row => row["identifier"] == methodNode);
+                .Any(row => row["identifier"].Equals(methodNode));
         }
 
         public Purity GetPurity(Method method)
@@ -509,7 +509,17 @@ namespace CsPurity
             else
             {
                 Method m = obj as Method;
-                return m.identifier == identifier || m.declaration == declaration;
+                if (HasKnownDeclaration() && m.HasKnownDeclaration())
+                {
+                    return m.declaration == declaration;
+                }
+                else if (!HasKnownDeclaration() && !m.HasKnownDeclaration()) {
+                    return m.identifier == identifier;
+                }
+                else
+                {
+                    return false;
+                }
             };
         }
 

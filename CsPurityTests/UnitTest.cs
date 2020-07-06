@@ -488,7 +488,7 @@ namespace CsPurityTests
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
                 .Where(m => m.Identifier.ToString() != "foo")
-                .ToList();
+                .Select(m => new Method(m, model));
 
             Assert.IsTrue(
                 HelpMethods.HaveEqualElements(
@@ -523,15 +523,18 @@ namespace CsPurityTests
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
             var model = Analyzer.GetSemanticModel(tree);
+            var lt = new LookupTable(root, model);
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
-            var lt = new LookupTable(root, model);
             var fooDependencies = lt.CalculateDependencies(new Method(fooDeclaration, model));
+            //var bar = HelpMethods.GetMethodDeclaration("bar", root, model);
+            //var baz = HelpMethods.GetMethodDeclaration("baz", root, model);
+            //var expectedResults = new List<Method> { bar, baz };
             var expectedResults = root
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
                 .Where(m => m.Identifier.ToString() != "foo")
-                .ToList();
+                .Select(m => new Method(m, model));
 
             Assert.IsTrue(
                 HelpMethods.HaveEqualElements(
@@ -584,7 +587,7 @@ namespace CsPurityTests
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
                 .Where(m => m.Identifier.ToString() != "foo")
-                .ToList();
+                .Select(m => new Method(m, model));
 
             Assert.IsTrue(
                 HelpMethods.HaveEqualElements(
@@ -626,7 +629,7 @@ namespace CsPurityTests
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
                 .Where(m => m.Identifier.ToString() != "foo")
-                .ToList();
+                .Select(m => new Method(m, model));
 
             Assert.IsTrue(
                 HelpMethods.HaveEqualElements(
@@ -672,7 +675,7 @@ namespace CsPurityTests
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
                 .Where(m => m.Identifier.ToString() != "foo")
-                .ToList();
+                .Select(m => new Method(m, model));
 
             Assert.IsTrue(
                 HelpMethods.HaveEqualElements(
@@ -715,7 +718,7 @@ namespace CsPurityTests
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
                 .Where(m => m.Identifier.ToString() != "foo")
-                .ToList();
+                .Select(m => new Method(m, model));
 
             Assert.IsTrue(
                 HelpMethods.HaveEqualElements(
@@ -1215,11 +1218,11 @@ namespace CsPurityTests
             static bool RowsAreEqual(DataRow row1, DataRow row2)
             {
                 return
-                    row1.Field<MethodDeclarationSyntax>("identifier") == row2.Field<MethodDeclarationSyntax>("identifier") &&
-                    row1.Field<Purity>("purity") == row2.Field<Purity>("purity") &&
+                    row1.Field<Method>("identifier").Equals(row2.Field<Method>("identifier")) &&
+                    row1.Field<Purity>("purity").Equals(row2.Field<Purity>("purity")) &&
                     HaveEqualElements(
-                        row1.Field<List<MethodDeclarationSyntax>>("dependencies"),
-                        row2.Field<List<MethodDeclarationSyntax>>("dependencies")
+                        row1.Field<List<Method>>("dependencies"),
+                        row2.Field<List<Method>>("dependencies")
                     );
             }
         }
