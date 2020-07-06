@@ -747,7 +747,8 @@ namespace CsPurityTests
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(root, model);
             var fooDependencies = lt.CalculateDependencies(new Method(fooDeclaration, model));
-            var expectedResultList = new List<MethodDeclarationSyntax> { null };
+            var cwlInvocation = root.DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
+            var expectedResultList = new List<Method> { new Method(cwlInvocation, model) };
 
             Assert.IsTrue(
                 HelpMethods.HaveEqualElements(

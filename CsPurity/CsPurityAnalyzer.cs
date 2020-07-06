@@ -161,14 +161,9 @@ namespace CsPurity
             this.workingSet = new WorkingSet(this);
         }
 
-
         /// <summary>
         /// Builds the lookup table and calculates each method's dependency
         /// set.
-        ///
-        /// Because unknown methods don't have a MethodDeclarationSyntax,
-        /// unknown methods are discarded and their immediate callers' purity
-        /// are set to Unknown.
         /// </summary>
         public void BuildLookupTable()
         {
@@ -180,27 +175,9 @@ namespace CsPurity
                 var dependencies = CalculateDependencies(method);
                 foreach (var dependency in dependencies)
                 {
-                    if (dependency == null) SetPurity(method, Purity.Unknown);
-                    else AddDependency(method, dependency);
+                    AddDependency(method, dependency);
                 }
             }
-        }
-
-        /// <summary>
-        /// Returns the declaration of the method invoced by `methodInvocation`
-        /// If no declaration is found, returns `null`
-        /// </summary>
-        public MethodDeclarationSyntax GetMethodDeclaration(InvocationExpressionSyntax methodInvocation)
-        {
-            ISymbol symbol = model.GetSymbolInfo(methodInvocation).Symbol;
-            // TODO: if symbol is null and methodInvocation is in blacklist, set methoddeclaration to purity
-            if (symbol == null) return null;
-
-            var declaringReferences = symbol.DeclaringSyntaxReferences;
-            if (declaringReferences.Length < 1) return null;
-
-            // not sure if this cast from SyntaxNode to MethodDeclarationSyntax always works
-            return (MethodDeclarationSyntax)declaringReferences.Single().GetSyntax();
         }
 
         public List<Method> GetDependencies(Method method)
@@ -210,22 +187,26 @@ namespace CsPurity
 
         /// <summary>
         /// Recursively computes a list of all unique methods that a method
-        /// depends on
+        /// depends on. If any method doesn't have a known declaration, its
+        /// purity level is set to `Unknown`.
         /// </summary>
-        /// <param name="methodDeclaration">The method</param>
+        /// <param name="method">The method</param>
         /// <returns>
         /// A list of all *unique* MethodDeclarationSyntaxes that <paramref
-        /// name="methodDeclaration"/> depends on. If any method's
-        /// implementation was not found, that method is represented as null in
-        /// the list.
+        /// name="method"/> depends on. If <paramref name="method"/> lacks a
+        /// known declaration, returns an empty list.
         /// </returns>
         public List<Method> CalculateDependencies(Method method)
         {
             List<Method> results = new List<Method>();
-            if (method == null)
+
+            // If `method` doesn't have a known declaration we cannot calculate
+            // its dependencies
+            if (!method.HasKnownDeclaration())
             {
-                results.Add(null); // if no method implementaiton was found,
-                return results;    // add `null` to results as an indication
+                AddMethod(method);
+                SetPurity(method, Purity.Unknown);
+                return results;
             };
 
             var methodInvocations = method
@@ -233,6 +214,7 @@ namespace CsPurity
                 .DescendantNodes()
                 .OfType<InvocationExpressionSyntax>();
             if (!methodInvocations.Any()) return results;
+
             foreach (var invocation in methodInvocations)
             {
                 results.Add(new Method(invocation, model));
@@ -472,8 +454,8 @@ namespace CsPurity
 
         public Method(MethodDeclarationSyntax methodDeclaration, SemanticModel model)
         {
-            this.declaration = methodDeclaration;
-            this.identifier = declaration.Identifier.Text;
+            declaration = methodDeclaration;
+            identifier = declaration.Identifier.Text;
             this.model = model;
         }
 
