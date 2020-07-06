@@ -24,6 +24,39 @@ namespace CsPurity
         readonly public SemanticModel model;
         readonly public LookupTable lookupTable;
 
+        // All methods in the blacklist are those that
+        public static readonly List<string> blacklist = new List<string>
+        {
+            "Console.Read",
+            "Console.ReadLine",
+            "Console.ReadKey",
+            "DateTime.Now",
+            "DateTimeOffset",
+            "Random.Next",
+            "Guid.NewGuid",
+            "System.IO.Path.GetRandomFileName",
+            "System.Threading.Thread.Start",
+            "Thread.Abort",
+            "Console.Read",
+            "Console.ReadLine",
+            "Console-ReadKey",
+            "Console.Write",
+            "Console.WriteLin",
+            "System.IO.Directory.Create",
+            "Directory.Move",
+            "Directory.Delete",
+            "File.Create",
+            "File.Move",
+            "File.Delete",
+            "File.ReadAllBytes",
+            "File.WriteAllBytes",
+            "System.Net.Http.HttpClient.GetAsync",
+            "HttpClient.PostAsync",
+            "HttpClinet.PutAsync",
+            "HttpClient.DeleteAsync",
+            "IDisposable.Dispose"
+        };
+
         public Analyzer(string text)
         {
             var tree = CSharpSyntaxTree.ParseText(text);
@@ -54,7 +87,13 @@ namespace CsPurity
                 {
                     // Perform checks:
 
-                    if (table.GetPurity(method) == Purity.Unknown)
+                    if (IsBlackListed(method))
+                    {
+                        table.SetPurity(method, Purity.Impure);
+                        table.PropagatePurity(method);
+                        tableModified = true;
+                    }
+                    else if (table.GetPurity(method) == Purity.Unknown)
                     {
                         table.SetPurity(method, Purity.Unknown);
                         table.PropagatePurity(method);
@@ -72,10 +111,16 @@ namespace CsPurity
             return table;
         }
 
-        public bool IsBlackListed(MethodDeclarationSyntax method)
+
+        /// <summary>
+        /// Checks if the method is blacklisted.
+        ///
+        /// A method is blacklisted if its implementation is unknown but its
+        /// purity level is known to be `Impure` in beforehand.
+        /// </summary>
+        public static bool IsBlackListed(Method method)
         {
-            // TODO
-            return false;
+            return blacklist.Contains(method.identifier);
         }
 
         public static SemanticModel GetSemanticModel(SyntaxTree tree)
@@ -323,8 +368,6 @@ namespace CsPurity
 
         DataRow GetMethodRow(Method method)
         {
-            var m1 = table.AsEnumerable().First().Field<Method>("identifier");
-            var foo = table.AsEnumerable().First().Equals(method);
             return table
                 .AsEnumerable()
                 .Where(row => row["identifier"].Equals(method))
@@ -495,7 +538,8 @@ namespace CsPurity
                 {
                     return m.declaration == declaration;
                 }
-                else if (!HasKnownDeclaration() && !m.HasKnownDeclaration()) {
+                else if (!HasKnownDeclaration() && !m.HasKnownDeclaration())
+                {
                     return m.identifier == identifier;
                 }
                 else
