@@ -39,9 +39,9 @@ namespace CsPurity
             "Thread.Abort",
             "Console.Read",
             "Console.ReadLine",
-            "Console-ReadKey",
+            "Console.ReadKey",
             "Console.Write",
-            "Console.WriteLin",
+            "Console.WriteLine",
             "System.IO.Directory.Create",
             "Directory.Move",
             "Directory.Delete",
@@ -85,32 +85,36 @@ namespace CsPurity
 
                 foreach (var method in workingSet)
                 {
-                    // Perform checks:
+                    // Perform purity checks:
 
                     if (IsBlackListed(method))
                     {
-                        table.SetPurity(method, Purity.Impure);
-                        table.PropagatePurity(method);
-                        tableModified = true;
+                        SetAndPropagatePurity(method, Purity.Impure);
                     }
                     else if (table.GetPurity(method) == Purity.Unknown)
                     {
-                        table.SetPurity(method, Purity.Unknown);
-                        table.PropagatePurity(method);
-                        tableModified = true;
+                        SetAndPropagatePurity(method, Purity.Unknown);
                     }
                     else if (method.ReadsStaticFieldOrProperty())
                     {
-                        table.SetPurity(method, Purity.Impure);
-                        table.PropagatePurity(method);
-                        tableModified = true;
+                        SetAndPropagatePurity(method, Purity.Impure);
                     }
                 }
                 workingSet.Calculate();
             }
             return table;
-        }
 
+            /// <summary>
+            /// Sets <paramref name="method"/>'s purity level to <paramref name="purity"/>.
+            ///
+            /// Sets <paramref name="tableModified"/> to true.
+            /// </summary>
+            void SetAndPropagatePurity(Method method, Purity purity) {
+                table.SetPurity(method, purity);
+                table.PropagatePurity(method);
+                tableModified = true;
+            }
+        }
 
         /// <summary>
         /// Checks if the method is blacklisted.
@@ -495,10 +499,15 @@ namespace CsPurity
                 .GetSyntax();
         }
 
-        public Method(MethodDeclarationSyntax methodDeclaration, SemanticModel model)
+        public Method(MethodDeclarationSyntax declaration, SemanticModel model)
+            : this(declaration.Identifier.Text, model)
         {
-            declaration = methodDeclaration;
-            identifier = declaration.Identifier.Text;
+            this.declaration = declaration;
+        }
+
+        public Method(string identifier, SemanticModel model)
+        {
+            this.identifier = identifier;
             this.model = model;
         }
 
