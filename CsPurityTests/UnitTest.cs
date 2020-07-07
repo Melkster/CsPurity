@@ -334,11 +334,8 @@ namespace CsPurityTests
             Assert.AreEqual(resultTable.GetPurity(removeDeclaration), Purity.Pure);
             //Assert.AreEqual(resultTable.GetPurity(removeDeclaration), Purity.ParametricallyImpure);
 
-            Assert.AreEqual(resultTable.GetPurity(printListLengthDeclaration), Purity.Unknown);
-            //Assert.AreEqual(resultTable.GetPurity(printListLengthDeclaration), Purity.Impure);
-
-            Assert.AreEqual(resultTable.GetPurity(printLengthDeclaration), Purity.Unknown);
-            //Assert.AreEqual(resultTable.GetPurity(printLengthDeclaration), Purity.Impure);
+            Assert.AreEqual(resultTable.GetPurity(printListLengthDeclaration), Purity.Impure);
+            Assert.AreEqual(resultTable.GetPurity(printLengthDeclaration), Purity.Impure);
         }
 
         [TestMethod]
@@ -383,6 +380,28 @@ namespace CsPurityTests
             Assert.IsTrue(resultTable.GetPurity(fozDeclaration) == Purity.Pure);
             Assert.IsTrue(resultTable.GetPurity(barDeclaration) == Purity.Unknown);
             Assert.IsTrue(resultTable.GetPurity(bazDeclaration) == Purity.Unknown);
+        }
+
+        [TestMethod]
+        public void TestIsBlackListed()
+        {
+            Assert.IsTrue(Analyzer.IsBlackListed(new Method("Console.WriteLine", null)));
+            Assert.IsFalse(Analyzer.IsBlackListed(new Method("foo", null)));
+            Assert.IsFalse(Analyzer.IsBlackListed(new Method("", null)));
+
+            var file = (@"
+                class C1
+                {
+                    int foo()
+                    {
+                        return 3;
+                    }
+                }
+            ");
+            var lt = Analyzer.Analyze(file);
+            Method foo = HelpMethods.GetMethodByName(lt, "foo");
+
+            Assert.IsFalse(Analyzer.IsBlackListed(foo));
         }
     }
 

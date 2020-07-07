@@ -24,6 +24,39 @@ namespace CsPurity
         readonly public SemanticModel model;
         readonly public LookupTable lookupTable;
 
+        // All methods in the blacklist are those that
+        public static readonly List<string> blacklist = new List<string>
+        {
+            "Console.Read",
+            "Console.ReadLine",
+            "Console.ReadKey",
+            "DateTime.Now",
+            "DateTimeOffset",
+            "Random.Next",
+            "Guid.NewGuid",
+            "System.IO.Path.GetRandomFileName",
+            "System.Threading.Thread.Start",
+            "Thread.Abort",
+            "Console.Read",
+            "Console.ReadLine",
+            "Console.ReadKey",
+            "Console.Write",
+            "Console.WriteLine",
+            "System.IO.Directory.Create",
+            "Directory.Move",
+            "Directory.Delete",
+            "File.Create",
+            "File.Move",
+            "File.Delete",
+            "File.ReadAllBytes",
+            "File.WriteAllBytes",
+            "System.Net.Http.HttpClient.GetAsync",
+            "HttpClient.PostAsync",
+            "HttpClinet.PutAsync",
+            "HttpClient.DeleteAsync",
+            "IDisposable.Dispose"
+        };
+
         public Analyzer(string text)
         {
             var tree = CSharpSyntaxTree.ParseText(text);
@@ -52,30 +85,46 @@ namespace CsPurity
 
                 foreach (var method in workingSet)
                 {
-                    // Perform checks:
+                    // Perform purity checks:
 
-                    if (table.GetPurity(method) == Purity.Unknown)
+                    if (IsBlackListed(method))
                     {
-                        table.SetPurity(method, Purity.Unknown);
-                        table.PropagatePurity(method);
-                        tableModified = true;
+                        SetAndPropagatePurity(method, Purity.Impure);
+                    }
+                    else if (table.GetPurity(method) == Purity.Unknown)
+                    {
+                        SetAndPropagatePurity(method, Purity.Unknown);
                     }
                     else if (method.ReadsStaticFieldOrProperty())
                     {
-                        table.SetPurity(method, Purity.Impure);
-                        table.PropagatePurity(method);
-                        tableModified = true;
+                        SetAndPropagatePurity(method, Purity.Impure);
                     }
                 }
                 workingSet.Calculate();
             }
             return table;
+
+            /// <summary>
+            /// Sets <paramref name="method"/>'s purity level to <paramref name="purity"/>.
+            ///
+            /// Sets <paramref name="tableModified"/> to true.
+            /// </summary>
+            void SetAndPropagatePurity(Method method, Purity purity) {
+                table.SetPurity(method, purity);
+                table.PropagatePurity(method);
+                tableModified = true;
+            }
         }
 
-        public bool IsBlackListed(MethodDeclarationSyntax method)
+        /// <summary>
+        /// Checks if the method is blacklisted.
+        ///
+        /// A method is blacklisted if its implementation is unknown but its
+        /// purity level is known to be `Impure` in beforehand.
+        /// </summary>
+        public static bool IsBlackListed(Method method)
         {
-            // TODO
-            return false;
+            return blacklist.Contains(method.identifier);
         }
 
         public static SemanticModel GetSemanticModel(SyntaxTree tree)
@@ -323,8 +372,6 @@ namespace CsPurity
 
         DataRow GetMethodRow(Method method)
         {
-            var m1 = table.AsEnumerable().First().Field<Method>("identifier");
-            var foo = table.AsEnumerable().First().Equals(method);
             return table
                 .AsEnumerable()
                 .Where(row => row["identifier"].Equals(method))
@@ -452,10 +499,15 @@ namespace CsPurity
                 .GetSyntax();
         }
 
-        public Method(MethodDeclarationSyntax methodDeclaration, SemanticModel model)
+        public Method(MethodDeclarationSyntax declaration, SemanticModel model)
+            : this(declaration.Identifier.Text, model)
         {
-            declaration = methodDeclaration;
-            identifier = declaration.Identifier.Text;
+            this.declaration = declaration;
+        }
+
+        public Method(string identifier, SemanticModel model)
+        {
+            this.identifier = identifier;
             this.model = model;
         }
 
@@ -495,7 +547,8 @@ namespace CsPurity
                 {
                     return m.declaration == declaration;
                 }
-                else if (!HasKnownDeclaration() && !m.HasKnownDeclaration()) {
+                else if (!HasKnownDeclaration() && !m.HasKnownDeclaration())
+                {
                     return m.identifier == identifier;
                 }
                 else
