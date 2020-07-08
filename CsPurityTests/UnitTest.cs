@@ -455,7 +455,6 @@ namespace CsPurityTests
             var l1 = new List<Method> { foo };
             var l2 = new List<Method> { foo2 };
             var l3 = l1.Union<Method>(l2);
-            WriteLine(l3.Count());
 
             Assert.IsTrue(eq);
             Assert.IsTrue(eq2);

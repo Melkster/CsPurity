@@ -89,15 +89,15 @@ namespace CsPurity
 
                     if (IsBlackListed(method))
                     {
-                        SetAndPropagatePurity(method, Purity.Impure);
+                        SetPurityAndPropagate(method, Purity.Impure);
                     }
                     else if (table.GetPurity(method) == Purity.Unknown)
                     {
-                        SetAndPropagatePurity(method, Purity.Unknown);
+                        SetPurityAndPropagate(method, Purity.Unknown);
                     }
                     else if (method.ReadsStaticFieldOrProperty())
                     {
-                        SetAndPropagatePurity(method, Purity.Impure);
+                        SetPurityAndPropagate(method, Purity.Impure);
                     }
                 }
                 workingSet.Calculate();
@@ -109,7 +109,7 @@ namespace CsPurity
             ///
             /// Sets <paramref name="tableModified"/> to true.
             /// </summary>
-            void SetAndPropagatePurity(Method method, Purity purity) {
+            void SetPurityAndPropagate(Method method, Purity purity) {
                 table.SetPurity(method, purity);
                 table.PropagatePurity(method);
                 tableModified = true;
@@ -449,16 +449,27 @@ namespace CsPurity
 
         public string ToStringNoDependencySet()
         {
-            string result = "";
+            int printoutWidth = 80;
+            string result = FormatTwoColumn("METHOD", "PURITY LEVEL")
+                + new string('-', printoutWidth + 12)
+                + "\n";
             foreach (var row in table.AsEnumerable())
             {
-                var identifier = row.Field<Method>("identifier");
+                string identifier = row.Field<Method>("identifier").ToString();
                 var purity = row.Field<Purity>("purity");
-                result += identifier + ":\t" + Enum.GetName(typeof(Purity), purity) + "\n";
+                result += FormatTwoColumn(identifier, Enum.GetName(typeof(Purity), purity));
             }
             return result;
+
+            string FormatTwoColumn(string item1, string item2)
+            {
+                int spaceWidth = printoutWidth - item1.Length;
+                string spaces = new String(' ', spaceWidth);
+                return $"{item1}{spaces}{item2} \n";
+            }
         }
     }
+
 
     public class Method
     {
@@ -566,7 +577,17 @@ namespace CsPurity
 
         public override string ToString()
         {
-            if (HasKnownDeclaration()) return declaration.Identifier.Text;
+            if (HasKnownDeclaration()) {
+                SyntaxToken classIdentifier = declaration
+                    .Ancestors()
+                    .OfType<ClassDeclarationSyntax>()
+                    .First()
+                    .Identifier;
+                string className = classIdentifier.Text;
+                string returnType = declaration.ReturnType.ToString();
+                string methodName = declaration.Identifier.Text;
+                return $"{returnType} {className}.{methodName}()";
+            }
             else return identifier;
         }
     }
