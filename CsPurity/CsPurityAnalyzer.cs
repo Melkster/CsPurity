@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Collections.Generic;
 using System.Data;
+using System.Text.RegularExpressions;
 
 using static System.Console;
 
@@ -24,37 +25,49 @@ namespace CsPurity
         readonly public SemanticModel model;
         readonly public LookupTable lookupTable;
 
-        // All methods in the blacklist are those that
-        public static readonly List<string> blacklist = new List<string>
+        // All methods in the knownPurities are those that
+        public static readonly List<(string, Purity)> knownPurities
+            = new List<(string, Purity)>
         {
-            "Console.Read",
-            "Console.ReadLine",
-            "Console.ReadKey",
-            "DateTime.Now",
-            "DateTimeOffset",
-            "Random.Next",
-            "Guid.NewGuid",
-            "System.IO.Path.GetRandomFileName",
-            "System.Threading.Thread.Start",
-            "Thread.Abort",
-            "Console.Read",
-            "Console.ReadLine",
-            "Console.ReadKey",
-            "Console.Write",
-            "Console.WriteLine",
-            "System.IO.Directory.Create",
-            "Directory.Move",
-            "Directory.Delete",
-            "File.Create",
-            "File.Move",
-            "File.Delete",
-            "File.ReadAllBytes",
-            "File.WriteAllBytes",
-            "System.Net.Http.HttpClient.GetAsync",
-            "HttpClient.PostAsync",
-            "HttpClinet.PutAsync",
-            "HttpClient.DeleteAsync",
-            "IDisposable.Dispose"
+            ("Console.Read",                        Purity.Impure),
+            ("Console.ReadLine",                    Purity.Impure),
+            ("Console.ReadKey",                     Purity.Impure),
+            ("DateTime.Now",                        Purity.Impure),
+            ("DateTimeOffset",                      Purity.Impure),
+            ("Random.Next",                         Purity.Impure),
+            ("Guid.NewGuid",                        Purity.Impure),
+            ("System.IO.Path.GetRandomFileName",    Purity.Impure),
+            ("System.Threading.Thread.Start",       Purity.Impure),
+            ("Thread.Abort",                        Purity.Impure),
+            ("Console.Read",                        Purity.Impure),
+            ("Console.ReadLine",                    Purity.Impure),
+            ("Console.ReadKey",                     Purity.Impure),
+            ("Console.Write",                       Purity.Impure),
+            ("Console.WriteLine",                   Purity.Impure),
+            ("System.IO.Directory.Create",          Purity.Impure),
+            ("Directory.Move",                      Purity.Impure),
+            ("Directory.Delete",                    Purity.Impure),
+            ("File.Create",                         Purity.Impure),
+            ("File.Move",                           Purity.Impure),
+            ("File.Delete",                         Purity.Impure),
+            ("File.ReadAllBytes",                   Purity.Impure),
+            ("File.WriteAllBytes",                  Purity.Impure),
+            ("System.Net.Http.HttpClient.GetAsync", Purity.Impure),
+            ("HttpClient.PostAsync",                Purity.Impure),
+            ("HttpClinet.PutAsync",                 Purity.Impure),
+            ("HttpClient.DeleteAsync",              Purity.Impure),
+            ("IDisposable.Dispose",                 Purity.Impure),
+            ("List.IsCompatibleObject()",           Purity.Pure),
+            ("List.Add()",                          Purity.Impure),
+            ("List.EnsureCapacity()",               Purity.Impure),
+            ("List.GetEnumerator()",                Purity.Pure),
+            ("List.GetEnumerator()",                Purity.Pure),
+            ("List.GetEnumerator()",                Purity.Pure),
+            ("List.TrimExcess()",                   Purity.Pure),
+            ("List.Synchronized()",                 Purity.Pure),
+            ("SynchronizedList.Add()",              Purity.Impure),
+            ("SynchronizedList.GetEnumerator()",    Purity.Pure),
+            ("List.Dispose()",                      Purity.Pure),
         };
 
         public Analyzer(string text)
@@ -87,9 +100,9 @@ namespace CsPurity
                 {
                     // Perform purity checks:
 
-                    if (IsBlackListed(method))
+                    if (PurityIsKnownPrior(method))
                     {
-                        SetPurityAndPropagate(method, Purity.Impure);
+                        SetPurityAndPropagate(method, GetPriorKnownPurity(method));
                     }
                     else if (table.GetPurity(method) == Purity.Unknown)
                     {
@@ -117,14 +130,25 @@ namespace CsPurity
         }
 
         /// <summary>
-        /// Checks if the method is blacklisted.
-        ///
-        /// A method is blacklisted if its implementation is unknown but its
-        /// purity level is known to be `Impure` in beforehand.
+        /// Returns the prior known purity level of <paramref name="method"/>.
+        /// If the purity level of <paramref name="method"/> is not known
+        /// prior, returns Purity.Unknown;
         /// </summary>
-        public static bool IsBlackListed(Method method)
+        public static Purity GetPriorKnownPurity(Method method)
         {
-            return blacklist.Contains(method.identifier);
+            if (!PurityIsKnownPrior(method)) return Purity.Unknown;
+            else return knownPurities.Single(m => m.Item1 == method.identifier).Item2;
+        }
+
+        /// <summary>
+        /// Determines if the purity of <paramref name="method"/> is known in
+        /// beforehand.
+        ///
+        /// Return true if it is, otherwise false.
+        /// </summary>
+        public static bool PurityIsKnownPrior(Method method)
+        {
+            return knownPurities.Exists(m => m.Item1 == method.identifier);
         }
 
         public static SemanticModel GetSemanticModel(SyntaxTree tree)
@@ -142,6 +166,9 @@ namespace CsPurity
 
         static void Main(string[] args)
         {
+            string file2 = System.IO.File.ReadAllText("../../../../CsPurityAnalyzer-copy.cs");
+            WriteLine(Analyze(file2).ToStringNoDependencySet());
+            return;
             if (!args.Any())
             {
                 WriteLine("Please provide path to C# file to be analyzed.");
@@ -187,7 +214,7 @@ namespace CsPurity
         }
     }
 
-    public class LookupTable
+    public class LookupTable : DataTable
     {
         public DataTable table = new DataTable();
         public WorkingSet workingSet;
@@ -201,13 +228,22 @@ namespace CsPurity
             table.Columns.Add("purity", typeof(Purity));
         }
 
-        public LookupTable(CompilationUnitSyntax root, SemanticModel model) : this()
+        public LookupTable(CompilationUnitSyntax root, SemanticModel model)
+            : this()
         {
             this.root = root;
             this.model = model;
 
             BuildLookupTable();
             this.workingSet = new WorkingSet(this);
+        }
+
+        // Creates a LookupTable with the content of `table`
+        public LookupTable(DataTable table, LookupTable lt)
+        {
+            this.root = lt.root;
+            this.model = lt.model;
+            this.table = table;
         }
 
         /// <summary>
@@ -370,6 +406,15 @@ namespace CsPurity
             }
         }
 
+        public LookupTable GetKnownPurities()
+        {
+            DataTable result = table
+                .AsEnumerable()
+                .Where(row => (Purity)row["purity"] != (Purity.Unknown))
+                .CopyToDataTable();
+            return new LookupTable(result, this);
+        }
+
         DataRow GetMethodRow(Method method)
         {
             return table
@@ -449,9 +494,9 @@ namespace CsPurity
 
         public string ToStringNoDependencySet()
         {
-            int printoutWidth = 80;
+            int printoutWidth = 100;
             string result = FormatTwoColumn("METHOD", "PURITY LEVEL")
-                + new string('-', printoutWidth + 12)
+                + new string('-', printoutWidth + 13)
                 + "\n";
             foreach (var row in table.AsEnumerable())
             {
@@ -463,9 +508,12 @@ namespace CsPurity
 
             string FormatTwoColumn(string item1, string item2)
             {
-                int spaceWidth = printoutWidth - item1.Length;
+                int spaceWidth;
+                if (printoutWidth - item1.Length <= 0) spaceWidth = 0;
+                else spaceWidth = printoutWidth - item1.Length;
+
                 string spaces = new String(' ', spaceWidth);
-                return $"{item1}{spaces}{item2} \n";
+                return $"{item1} {spaces}{item2}\n";
             }
         }
     }
@@ -490,17 +538,18 @@ namespace CsPurity
         public Method(InvocationExpressionSyntax methodInvocation, SemanticModel model)
         {
             this.model = model;
+
             ISymbol symbol = model.GetSymbolInfo(methodInvocation).Symbol;
             if (symbol == null)
             {
-                identifier = methodInvocation.Expression.ToString();
+                SetIdentifier(methodInvocation);
                 return;
             };
 
             var declaringReferences = symbol.DeclaringSyntaxReferences;
             if (declaringReferences.Length < 1)
             {
-                identifier = methodInvocation.Expression.ToString();
+                SetIdentifier(methodInvocation);
                 return;
             };
 
@@ -520,6 +569,12 @@ namespace CsPurity
         {
             this.identifier = identifier;
             this.model = model;
+        }
+
+        void SetIdentifier(InvocationExpressionSyntax methodInvocation)
+        {
+            identifier = methodInvocation.Expression.ToString();
+            identifier = Regex.Replace(identifier, @"[\s,\n]+", "");
         }
 
         public bool ReadsStaticFieldOrProperty()
@@ -586,7 +641,7 @@ namespace CsPurity
                 string className = classIdentifier.Text;
                 string returnType = declaration.ReturnType.ToString();
                 string methodName = declaration.Identifier.Text;
-                return $"{returnType} {className}.{methodName}()";
+                return $"{returnType} {className}.{methodName}";
             }
             else return identifier;
         }

@@ -385,9 +385,9 @@ namespace CsPurityTests
         [TestMethod]
         public void TestIsBlackListed()
         {
-            Assert.IsTrue(Analyzer.IsBlackListed(new Method("Console.WriteLine", null)));
-            Assert.IsFalse(Analyzer.IsBlackListed(new Method("foo", null)));
-            Assert.IsFalse(Analyzer.IsBlackListed(new Method("", null)));
+            Assert.IsTrue(Analyzer.PurityIsKnownPrior(new Method("Console.WriteLine", null)));
+            Assert.IsFalse(Analyzer.PurityIsKnownPrior(new Method("foo", null)));
+            Assert.IsFalse(Analyzer.PurityIsKnownPrior(new Method("", null)));
 
             var file = (@"
                 class C1
@@ -401,7 +401,7 @@ namespace CsPurityTests
             var lt = Analyzer.Analyze(file);
             Method foo = HelpMethods.GetMethodByName(lt, "foo");
 
-            Assert.IsFalse(Analyzer.IsBlackListed(foo));
+            Assert.IsFalse(Analyzer.PurityIsKnownPrior(foo));
         }
     }
 
