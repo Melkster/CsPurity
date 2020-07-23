@@ -73,9 +73,9 @@ namespace CsPurity
         public Analyzer(string text)
         {
             var tree = CSharpSyntaxTree.ParseText(text);
-            this.root = (CompilationUnitSyntax)tree.GetRoot();
-            this.model = GetSemanticModel(tree);
-            this.lookupTable = new LookupTable(root, model);
+            root = (CompilationUnitSyntax)tree.GetRoot();
+            model = GetSemanticModel(tree);
+            lookupTable = new LookupTable(root, model);
         }
 
         /// <summary>
@@ -166,9 +166,6 @@ namespace CsPurity
 
         static void Main(string[] args)
         {
-            string file2 = System.IO.File.ReadAllText("../../../../CsPurityAnalyzer-copy.cs");
-            WriteLine(Analyze(file2).ToStringNoDependencySet());
-            return;
             if (!args.Any())
             {
                 WriteLine("Please provide path to C# file to be analyzed.");
@@ -183,12 +180,13 @@ namespace CsPurity
             }
             else if (args.Contains("-s"))
             {
-                //WriteLine("-s was used as flag");
                 int textIndex = Array.IndexOf(args, "-s") + 1;
                 if (textIndex < args.Length)
                 {
                     string file = args[textIndex];
-                    WriteLine(Analyze(file).ToStringNoDependencySet());
+                    WriteLine(Analyze(file)
+                        .StripMethodsNotDeclaredInAnalyzedFile()
+                        .ToStringNoDependencySet());
                 }
                 else
                 {
@@ -200,7 +198,9 @@ namespace CsPurity
                 try
                 {
                     string file = System.IO.File.ReadAllText(args[0]);
-                    WriteLine(Analyze(file).ToStringNoDependencySet());
+                    WriteLine(Analyze(file)
+                        //.StripMethodsNotDeclaredInAnalyzedFile()
+                        .ToStringNoDependencySet());
                 }
                 catch (System.IO.FileNotFoundException err)
                 {
@@ -214,7 +214,7 @@ namespace CsPurity
         }
     }
 
-    public class LookupTable : DataTable
+    public class LookupTable
     {
         public DataTable table = new DataTable();
         public WorkingSet workingSet;
@@ -243,7 +243,12 @@ namespace CsPurity
         {
             this.root = lt.root;
             this.model = lt.model;
-            this.table = table;
+            this.table = table.Copy();
+        }
+
+        public LookupTable Copy()
+        {
+            return new LookupTable(table, this);
         }
 
         /// <summary>
@@ -379,6 +384,24 @@ namespace CsPurity
             }
         }
 
+        public void RemoveMethod(Method methodNode)
+        {
+            if (!HasMethod(methodNode))
+            {
+                throw new System.Exception(
+                    $"Method '{methodNode}' does not exist in lookup table"
+                );
+            }
+            else
+            {
+                table
+                    .AsEnumerable()
+                    .Where(row => row["identifier"].Equals(methodNode))
+                    .Single()
+                    .Delete();
+            }
+        }
+
         public bool HasMethod(Method methodNode)
         {
             return table
@@ -459,6 +482,32 @@ namespace CsPurity
             return result;
         }
 
+
+        /// <summary>
+        /// Removes all methods in the lookup table that were not declared in
+        /// the syntax tree.
+        /// </summary>
+        /// <returns>
+        /// A new lookup table stripped of all methods who's declaration is not
+        /// in the syntax tree `root`.
+        /// </returns>
+        public LookupTable StripMethodsNotDeclaredInAnalyzedFile()
+        {
+            var result = this.Copy();
+            var methodDeclarations = root
+                .DescendantNodes()
+                .OfType<MethodDeclarationSyntax>();
+
+            foreach (DataRow row in table.Rows)
+            {
+                Method method = row.Field<Method>("identifier");
+                if (!methodDeclarations.Contains(method.declaration)) {
+                    result.RemoveMethod(method);
+                }
+            }
+            return result;
+        }
+
         public override string ToString()
         {
             string result = "";
@@ -494,7 +543,7 @@ namespace CsPurity
 
         public string ToStringNoDependencySet()
         {
-            int printoutWidth = 100;
+            int printoutWidth = 80;
             string result = FormatTwoColumn("METHOD", "PURITY LEVEL")
                 + new string('-', printoutWidth + 13)
                 + "\n";

@@ -871,6 +871,84 @@ namespace CsPurityTests
         }
 
         [TestMethod]
+        public void TestRemoveMethod()
+        {
+            var file = (@"
+                class C1
+                {
+                    int foo()
+                    {
+                        return 42;
+                    }
+
+                    int bar()
+                    {
+                        return 1;
+                    }
+                }
+            ");
+            var tree = CSharpSyntaxTree.ParseText(file);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+            var model = Analyzer.GetSemanticModel(tree);
+
+            LookupTable lookupTable = new LookupTable(root, model);
+
+            var foo = HelpMethods.GetMethodDeclaration("foo", root, model);
+            var bar = HelpMethods.GetMethodDeclaration("bar", root, model);
+
+            Assert.IsTrue(lookupTable.HasMethod(foo));
+            Assert.IsTrue(lookupTable.HasMethod(bar));
+
+            lookupTable.RemoveMethod(foo);
+
+            Assert.IsFalse(lookupTable.HasMethod(foo));
+            Assert.IsTrue(lookupTable.HasMethod(bar));
+
+            lookupTable.RemoveMethod(bar);
+
+            Assert.IsFalse(lookupTable.HasMethod(foo));
+            Assert.IsFalse(lookupTable.HasMethod(bar));
+        }
+
+        [TestMethod]
+        public void TestStripMethods()
+        {
+            var file = (@"
+                class C1
+                {
+                    int foo()
+                    {
+                        Console.WriteLine();
+                        return 42;
+                    }
+
+                    int bar()
+                    {
+                        return 1;
+                    }
+                }
+            ");
+            var tree = CSharpSyntaxTree.ParseText(file);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+            var model = Analyzer.GetSemanticModel(tree);
+            LookupTable lookupTable = new LookupTable(root, model);
+
+            var foo = HelpMethods.GetMethodDeclaration("foo", root, model);
+            var bar = HelpMethods.GetMethodDeclaration("bar", root, model);
+            var cwl = new Method("Console.WriteLine", model);
+
+            Assert.IsTrue(lookupTable.HasMethod(foo));
+            Assert.IsTrue(lookupTable.HasMethod(bar));
+            Assert.IsTrue(lookupTable.HasMethod(cwl));
+
+            lookupTable = lookupTable.StripMethodsNotDeclaredInAnalyzedFile();
+
+            Assert.IsTrue(lookupTable.HasMethod(foo));
+            Assert.IsTrue(lookupTable.HasMethod(bar));
+            Assert.IsFalse(lookupTable.HasMethod(cwl));
+        }
+
+        [TestMethod]
         public void TestAddDependency()
         {
             var file = (@"
