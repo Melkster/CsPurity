@@ -153,7 +153,7 @@ namespace CsPurity
 
         public static SemanticModel GetSemanticModel(SyntaxTree tree)
         {
-            var model = CSharpCompilation.Create("assemblyName")
+            return CSharpCompilation.Create("assemblyName")
                 .AddReferences(
                     MetadataReference.CreateFromFile(
                         typeof(string).Assembly.Location
@@ -161,11 +161,38 @@ namespace CsPurity
                  )
                 .AddSyntaxTrees(tree)
                 .GetSemanticModel(tree);
-            return model;
         }
 
         static void Main(string[] args)
         {
+            string file1 = System.IO.File.ReadAllText("D:/Melker/other-code/console-app-1/ConsoleApp1/ConsoleApp1/Program.cs");
+            string file2 = System.IO.File.ReadAllText("D:/Melker/other-code/console-app-1/ConsoleApp1/ConsoleApp1/Class1.cs");
+            var tree1 = CSharpSyntaxTree.ParseText(file1);
+            var tree2 = CSharpSyntaxTree.ParseText(file2);
+            var model = CSharpCompilation.Create("assemblyName")
+                .AddReferences(
+                    MetadataReference.CreateFromFile(
+                        typeof(string).Assembly.Location
+                    )
+                 )
+                .AddSyntaxTrees(tree1)
+                .AddSyntaxTrees(tree2)
+                .GetSemanticModel(tree1);
+
+            var fooInvocation1 = tree1
+                .GetRoot()
+                .DescendantNodes()
+                .OfType<InvocationExpressionSyntax>()
+                .First();
+            var fooInvocation2 = tree1
+                .GetRoot()
+                .DescendantNodes()
+                .OfType<InvocationExpressionSyntax>()
+                .Last();
+            ISymbol symbol1 = model.GetSymbolInfo(fooInvocation1).Symbol;
+            ISymbol symbol2 = model.GetSymbolInfo(fooInvocation2).Symbol;
+            return;
+
             if (!args.Any())
             {
                 WriteLine("Please provide path to C# file to be analyzed.");
