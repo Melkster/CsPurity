@@ -21,7 +21,7 @@ namespace CsPurity
 
     public class Analyzer
     {
-        readonly public CompilationUnitSyntax root;
+        readonly public List<CompilationUnitSyntax> roots;
         readonly public SemanticModel model;
         readonly public LookupTable lookupTable;
 
@@ -70,12 +70,12 @@ namespace CsPurity
             ("List.Dispose()",                      Purity.Pure),
         };
 
-        public Analyzer(string text)
+        public Analyzer(List<string> files)
         {
-            var tree = CSharpSyntaxTree.ParseText(text);
-            root = (CompilationUnitSyntax)tree.GetRoot();
-            model = GetSemanticModel(tree);
-            lookupTable = new LookupTable(root, model);
+            var trees = files.Select(f => CSharpSyntaxTree.ParseText(f)).ToList();
+            var roots = trees.Select(t => (CompilationUnitSyntax)t.GetRoot()).ToList();
+            model = GetSemanticModel(trees);
+            lookupTable = new LookupTable(roots, model);
         }
 
         /// <summary>
@@ -85,9 +85,9 @@ namespace CsPurity
         /// <returns>A LookupTable containing each method in <paramref
         /// name="text"/>, its dependency set as well as its purity level
         /// </returns>
-        public static LookupTable Analyze(string text)
+        public static LookupTable Analyze(List<string> files)
         {
-            Analyzer analyzer = new Analyzer(text);
+            Analyzer analyzer = new Analyzer(files);
             LookupTable table = analyzer.lookupTable;
             WorkingSet workingSet = table.workingSet;
             bool tableModified = true;
@@ -151,22 +151,33 @@ namespace CsPurity
             return knownPurities.Exists(m => m.Item1 == method.identifier);
         }
 
-        public static SemanticModel GetSemanticModel(SyntaxTree tree)
+        public static SemanticModel GetSemanticModel(List<SyntaxTree> trees)
         {
-            return CSharpCompilation.Create("assemblyName")
+            var result = CSharpCompilation
+                .Create("assemblyName")
                 .AddReferences(
                     MetadataReference.CreateFromFile(
                         typeof(string).Assembly.Location
                     )
-                 )
-                .AddSyntaxTrees(tree)
-                .GetSemanticModel(tree);
+                 );
+
+            foreach (var tree in trees)
+            {
+                result = result.AddSyntaxTrees(tree);
+            }
+            return result.GetSemanticModel(trees[0]);
         }
 
         static void Main(string[] args)
         {
             string file1 = System.IO.File.ReadAllText("D:/Melker/other-code/console-app-1/ConsoleApp1/ConsoleApp1/Program.cs");
             string file2 = System.IO.File.ReadAllText("D:/Melker/other-code/console-app-1/ConsoleApp1/ConsoleApp1/Class1.cs");
+
+            WriteLine(Analyze(new List<string> { file1, file2 })
+                .StripMethodsNotDeclaredInAnalyzedFile()
+                .ToStringNoDependencySet());
+            return;
+
             var tree1 = CSharpSyntaxTree.ParseText(file1);
             var tree2 = CSharpSyntaxTree.ParseText(file2);
             var model = CSharpCompilation.Create("assemblyName")
@@ -211,9 +222,9 @@ namespace CsPurity
                 if (textIndex < args.Length)
                 {
                     string file = args[textIndex];
-                    WriteLine(Analyze(file)
-                        .StripMethodsNotDeclaredInAnalyzedFile()
-                        .ToStringNoDependencySet());
+                    //WriteLine(Analyze(file)
+                    //    .StripMethodsNotDeclaredInAnalyzedFile()
+                    //    .ToStringNoDependencySet());
                 }
                 else
                 {
@@ -225,9 +236,9 @@ namespace CsPurity
                 try
                 {
                     string file = System.IO.File.ReadAllText(args[0]);
-                    WriteLine(Analyze(file)
-                        //.StripMethodsNotDeclaredInAnalyzedFile()
-                        .ToStringNoDependencySet());
+                    //WriteLine(Analyze(file)
+                    //    //.StripMethodsNotDeclaredInAnalyzedFile()
+                    //    .ToStringNoDependencySet());
                 }
                 catch (System.IO.FileNotFoundException err)
                 {
@@ -245,7 +256,7 @@ namespace CsPurity
     {
         public DataTable table = new DataTable();
         public WorkingSet workingSet;
-        public readonly CompilationUnitSyntax root;
+        public readonly List<CompilationUnitSyntax> roots;
         public readonly SemanticModel model;
 
         public LookupTable()
@@ -255,10 +266,10 @@ namespace CsPurity
             table.Columns.Add("purity", typeof(Purity));
         }
 
-        public LookupTable(CompilationUnitSyntax root, SemanticModel model)
+        public LookupTable(List<CompilationUnitSyntax> roots, SemanticModel model)
             : this()
         {
-            this.root = root;
+            this.roots = roots;
             this.model = model;
 
             BuildLookupTable();
@@ -268,7 +279,7 @@ namespace CsPurity
         // Creates a LookupTable with the content of `table`
         public LookupTable(DataTable table, LookupTable lt)
         {
-            this.root = lt.root;
+            this.roots = lt.roots;
             this.model = lt.model;
             this.table = table.Copy();
         }
@@ -284,15 +295,18 @@ namespace CsPurity
         /// </summary>
         public void BuildLookupTable()
         {
-            var methodDeclarations = root.DescendantNodes().OfType<MethodDeclarationSyntax>();
-            foreach (var methodDeclaration in methodDeclarations)
+            foreach (var root in roots)
             {
-                Method method = new Method(methodDeclaration, model);
-                AddMethod(method);
-                var dependencies = CalculateDependencies(method);
-                foreach (var dependency in dependencies)
+                var methodDeclarations = root.DescendantNodes().OfType<MethodDeclarationSyntax>();
+                foreach (var methodDeclaration in methodDeclarations)
                 {
-                    AddDependency(method, dependency);
+                    Method method = new Method(methodDeclaration, model);
+                    AddMethod(method);
+                    var dependencies = CalculateDependencies(method);
+                    foreach (var dependency in dependencies)
+                    {
+                        AddDependency(method, dependency);
+                    }
                 }
             }
         }
@@ -520,16 +534,22 @@ namespace CsPurity
         /// </returns>
         public LookupTable StripMethodsNotDeclaredInAnalyzedFile()
         {
-            var result = this.Copy();
-            var methodDeclarations = root
-                .DescendantNodes()
-                .OfType<MethodDeclarationSyntax>();
-
-            foreach (DataRow row in table.Rows)
+            // TODO: traverse methodDeclarations and use HasMethod to check if
+            // each method exists instead of vice versa
+            var result = Copy();
+            foreach (var root in roots)
             {
-                Method method = row.Field<Method>("identifier");
-                if (!methodDeclarations.Contains(method.declaration)) {
-                    result.RemoveMethod(method);
+                var methodDeclarations = root
+                    .DescendantNodes()
+                    .OfType<MethodDeclarationSyntax>();
+
+                foreach (DataRow row in result.table.Rows)
+                {
+                    Method method = row.Field<Method>("identifier");
+                    if (!methodDeclarations.Contains(method.declaration))
+                    {
+                        result.RemoveMethod(method);
+                    }
                 }
             }
             return result;
