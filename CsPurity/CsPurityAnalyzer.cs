@@ -174,7 +174,7 @@ namespace CsPurity
             string file2 = System.IO.File.ReadAllText("D:/Melker/other-code/console-app-1/ConsoleApp1/ConsoleApp1/Class1.cs");
 
             WriteLine(Analyze(new List<string> { file1, file2 })
-                .StripMethodsNotDeclaredInAnalyzedFile()
+                .StripMethodsNotDeclaredInAnalyzedFiles()
                 .ToStringNoDependencySet());
             return;
 
@@ -532,25 +532,25 @@ namespace CsPurity
         /// A new lookup table stripped of all methods who's declaration is not
         /// in the syntax tree `root`.
         /// </returns>
-        public LookupTable StripMethodsNotDeclaredInAnalyzedFile()
+        public LookupTable StripMethodsNotDeclaredInAnalyzedFiles()
         {
-            // TODO: traverse methodDeclarations and use HasMethod to check if
-            // each method exists instead of vice versa
-            var result = Copy();
+            // TODO: write tests for this method
+            LookupTable result = Copy();
+            List<Method> methods = new List<Method>();
             foreach (var root in roots)
             {
                 var methodDeclarations = root
                     .DescendantNodes()
                     .OfType<MethodDeclarationSyntax>();
-
-                foreach (DataRow row in result.table.Rows)
+                foreach (var methodDeclaration in methodDeclarations)
                 {
-                    Method method = row.Field<Method>("identifier");
-                    if (!methodDeclarations.Contains(method.declaration))
-                    {
-                        result.RemoveMethod(method);
-                    }
+                    methods.Add(new Method(methodDeclaration, model));
                 }
+            }
+            foreach (var row in table.AsEnumerable())
+            {
+                var method = row.Field<Method>("identifier");
+                if (!methods.Contains(method)) result.RemoveMethod(method);
             }
             return result;
         }

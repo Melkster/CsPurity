@@ -941,7 +941,7 @@ namespace CsPurityTests
             Assert.IsTrue(lookupTable.HasMethod(bar));
             Assert.IsTrue(lookupTable.HasMethod(cwl));
 
-            lookupTable = lookupTable.StripMethodsNotDeclaredInAnalyzedFile();
+            lookupTable = lookupTable.StripMethodsNotDeclaredInAnalyzedFiles();
 
             Assert.IsTrue(lookupTable.HasMethod(foo));
             Assert.IsTrue(lookupTable.HasMethod(bar));
