@@ -124,9 +124,9 @@ namespace CsPurityTests
                 }
             ");
             Analyzer analyzer = new Analyzer(file);
-            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", analyzer.root, analyzer.model);
-            var barDeclaration = HelpMethods.GetMethodDeclaration("bar", analyzer.root, analyzer.model);
-            var fazDeclaration = HelpMethods.GetMethodDeclaration("faz", analyzer.root, analyzer.model);
+            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", analyzer.roots.Single(), analyzer.model);
+            var barDeclaration = HelpMethods.GetMethodDeclaration("bar", analyzer.roots.Single(), analyzer.model);
+            var fazDeclaration = HelpMethods.GetMethodDeclaration("faz", analyzer.roots.Single(), analyzer.model);
 
             Assert.IsTrue(fooDeclaration.ReadsStaticFieldOrProperty());
             Assert.IsFalse(barDeclaration.ReadsStaticFieldOrProperty());
@@ -150,7 +150,7 @@ namespace CsPurityTests
                 }
             ");
             Analyzer analyzer = new Analyzer(file);
-            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", analyzer.root, analyzer.model);
+            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", analyzer.roots.Single(), analyzer.model);
 
             Assert.IsTrue(fooDeclaration.ReadsStaticFieldOrProperty());
         }
@@ -180,7 +180,7 @@ namespace CsPurityTests
                 }
             ");
             Analyzer analyzer = new Analyzer(file);
-            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", analyzer.root, analyzer.model);
+            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", analyzer.roots.Single(), analyzer.model);
 
             Assert.IsTrue(fooDeclaration.ReadsStaticFieldOrProperty());
         }
@@ -1291,13 +1291,18 @@ namespace CsPurityTests
             string name
         )
         {
-            var methodDeclaration = lookupTable
-                .root
-                .DescendantNodes()
-                .OfType<MethodDeclarationSyntax>()
-                .Where(m => m.Identifier.Text == name)
-                .Single();
-            return new Method(methodDeclaration, lookupTable.model);
+            foreach (var root in lookupTable.roots)
+            {
+                var methodDeclarations = root
+                    .DescendantNodes()
+                    .OfType<MethodDeclarationSyntax>()
+                    .Where(m => m.Identifier.Text == name);
+                if (methodDeclarations.Any())
+                {
+                    return new Method(methodDeclarations.Single(), lookupTable.model);
+                }
+            }
+            return null;
         }
 
         // Rows need to be in the same order in both tables

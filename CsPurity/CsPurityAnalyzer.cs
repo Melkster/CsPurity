@@ -73,10 +73,12 @@ namespace CsPurity
         public Analyzer(List<string> files)
         {
             var trees = files.Select(f => CSharpSyntaxTree.ParseText(f)).ToList();
-            var roots = trees.Select(t => (CompilationUnitSyntax)t.GetRoot()).ToList();
+            roots = trees.Select(t => (CompilationUnitSyntax)t.GetRoot()).ToList();
             model = GetSemanticModel(trees);
             lookupTable = new LookupTable(roots, model);
         }
+
+        public Analyzer(string file) : this(new List<string> { file }) { }
 
         /// <summary>
         /// Analyzes the purity of the given text.
@@ -129,6 +131,11 @@ namespace CsPurity
             }
         }
 
+        public static LookupTable Analyze(string file)
+        {
+            return Analyze(new List<string> { file });
+        }
+
         /// <summary>
         /// Returns the prior known purity level of <paramref name="method"/>.
         /// If the purity level of <paramref name="method"/> is not known
@@ -166,6 +173,11 @@ namespace CsPurity
                 result = result.AddSyntaxTrees(tree);
             }
             return result.GetSemanticModel(trees[0]);
+        }
+
+        public static SemanticModel GetSemanticModel(SyntaxTree tree)
+        {
+            return GetSemanticModel(new List<SyntaxTree> { tree });
         }
 
         static void Main(string[] args)
@@ -275,6 +287,9 @@ namespace CsPurity
             BuildLookupTable();
             this.workingSet = new WorkingSet(this);
         }
+
+        public LookupTable(CompilationUnitSyntax root, SemanticModel model)
+            : this(new List<CompilationUnitSyntax> { root }, model) { }
 
         // Creates a LookupTable with the content of `table`
         public LookupTable(DataTable table, LookupTable lt)
