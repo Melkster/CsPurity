@@ -21,8 +21,6 @@ namespace CsPurity
 
     public class Analyzer
     {
-        readonly public List<CompilationUnitSyntax> roots;
-        readonly public SemanticModel model;
         readonly public LookupTable lookupTable;
 
         // All methods in the knownPurities are those that
@@ -73,9 +71,7 @@ namespace CsPurity
         public Analyzer(List<string> files)
         {
             var trees = files.Select(f => CSharpSyntaxTree.ParseText(f)).ToList();
-            roots = trees.Select(t => (CompilationUnitSyntax)t.GetRoot()).ToList();
-            model = GetSemanticModel(trees);
-            lookupTable = new LookupTable(roots, model);
+            lookupTable = new LookupTable(trees);
         }
 
         public Analyzer(string file) : this(new List<string> { file }) { }
@@ -110,7 +106,7 @@ namespace CsPurity
                     {
                         SetPurityAndPropagate(method, Purity.Unknown);
                     }
-                    else if (method.ReadsStaticFieldOrProperty())
+                    else if (analyzer.ReadsStaticFieldOrProperty(method))
                     {
                         SetPurityAndPropagate(method, Purity.Impure);
                     }
@@ -137,6 +133,33 @@ namespace CsPurity
         }
 
         /// <summary>
+        /// Builds the semantic model
+        /// </summary>
+        /// <param name="trees">
+        /// All trees including <paramref name="tree"/>
+        /// representing all files making up the program to analyze </param>
+        /// <param name="tree">The </param>
+        /// <returns></returns>
+        public static SemanticModel GetSemanticModel(List<SyntaxTree> trees, SyntaxTree tree)
+        {
+            var result = CSharpCompilation
+                .Create("AnalysisModel")
+                .AddReferences(
+                    MetadataReference.CreateFromFile(
+                        typeof(string).Assembly.Location
+                    )
+                )
+                .AddSyntaxTrees(trees)
+                .GetSemanticModel(tree);
+            return result;
+        }
+
+        public static SemanticModel GetSemanticModel(SyntaxTree tree)
+        {
+            return GetSemanticModel(new List<SyntaxTree> { tree }, tree);
+        }
+
+        /// <summary>
         /// Returns the prior known purity level of <paramref name="method"/>.
         /// If the purity level of <paramref name="method"/> is not known
         /// prior, returns Purity.Unknown;
@@ -158,26 +181,30 @@ namespace CsPurity
             return knownPurities.Exists(m => m.Item1 == method.identifier);
         }
 
-        public static SemanticModel GetSemanticModel(List<SyntaxTree> trees)
+        public bool ReadsStaticFieldOrProperty(Method method)
         {
-            var result = CSharpCompilation
-                .Create("assemblyName")
-                .AddReferences(
-                    MetadataReference.CreateFromFile(
-                        typeof(string).Assembly.Location
-                    )
-                 );
+            IEnumerable<IdentifierNameSyntax> identifiers = method
+                .declaration
+                .DescendantNodes()
+                .OfType<IdentifierNameSyntax>();
 
-            foreach (var tree in trees)
+            foreach (var identifier in identifiers)
             {
-                result = result.AddSyntaxTrees(tree);
-            }
-            return result.GetSemanticModel(trees[0]);
-        }
+                SemanticModel model = Analyzer.GetSemanticModel(
+                    lookupTable.trees,
+                    identifier.SyntaxTree.GetRoot().SyntaxTree
+                );
+                ISymbol symbol = model.GetSymbolInfo(identifier).Symbol;
+                if (symbol == null) break;
 
-        public static SemanticModel GetSemanticModel(SyntaxTree tree)
-        {
-            return GetSemanticModel(new List<SyntaxTree> { tree });
+                bool isStatic = symbol.IsStatic;
+                bool isField = symbol.Kind == SymbolKind.Field;
+                bool isProperty = symbol.Kind == SymbolKind.Property;
+                bool isMethod = symbol.Kind == SymbolKind.Method;
+
+                if (isStatic && (isField || isProperty) && !isMethod) return true;
+            }
+            return false;
         }
 
         static void Main(string[] args)
@@ -212,6 +239,7 @@ namespace CsPurity
                 .DescendantNodes()
                 .OfType<InvocationExpressionSyntax>()
                 .Last();
+
             ISymbol symbol1 = model.GetSymbolInfo(fooInvocation1).Symbol;
             ISymbol symbol2 = model.GetSymbolInfo(fooInvocation2).Symbol;
             return;
@@ -268,8 +296,7 @@ namespace CsPurity
     {
         public DataTable table = new DataTable();
         public WorkingSet workingSet;
-        public readonly List<CompilationUnitSyntax> roots;
-        public readonly SemanticModel model;
+        public readonly List<SyntaxTree> trees;
 
         public LookupTable()
         {
@@ -278,24 +305,21 @@ namespace CsPurity
             table.Columns.Add("purity", typeof(Purity));
         }
 
-        public LookupTable(List<CompilationUnitSyntax> roots, SemanticModel model)
+        public LookupTable(List<SyntaxTree> trees)
             : this()
         {
-            this.roots = roots;
-            this.model = model;
+            this.trees = trees;
 
             BuildLookupTable();
             this.workingSet = new WorkingSet(this);
         }
 
-        public LookupTable(CompilationUnitSyntax root, SemanticModel model)
-            : this(new List<CompilationUnitSyntax> { root }, model) { }
+        public LookupTable(SyntaxTree tree) : this(new List<SyntaxTree> { tree }) { }
 
         // Creates a LookupTable with the content of `table`
         public LookupTable(DataTable table, LookupTable lt)
         {
-            this.roots = lt.roots;
-            this.model = lt.model;
+            this.trees = lt.trees;
             this.table = table.Copy();
         }
 
@@ -310,12 +334,15 @@ namespace CsPurity
         /// </summary>
         public void BuildLookupTable()
         {
-            foreach (var root in roots)
+            foreach (var tree in trees)
             {
-                var methodDeclarations = root.DescendantNodes().OfType<MethodDeclarationSyntax>();
+                var methodDeclarations = tree
+                    .GetRoot()
+                    .DescendantNodes()
+                    .OfType<MethodDeclarationSyntax>();
                 foreach (var methodDeclaration in methodDeclarations)
                 {
-                    Method method = new Method(methodDeclaration, model);
+                    Method method = new Method(methodDeclaration);
                     AddMethod(method);
                     var dependencies = CalculateDependencies(method);
                     foreach (var dependency in dependencies)
@@ -363,8 +390,15 @@ namespace CsPurity
 
             foreach (var invocation in methodInvocations)
             {
+                // TODO: not sure if this is gonna work:
+                SemanticModel model = Analyzer.GetSemanticModel(
+                    trees,
+                    invocation.SyntaxTree.GetRoot().SyntaxTree
+                );
                 results.Add(new Method(invocation, model));
-                results = results.Union(CalculateDependencies(new Method(invocation, model))).ToList();
+                results = results.Union(
+                    CalculateDependencies(new Method(invocation, model))
+                ).ToList();
             }
             return results;
         }
@@ -541,25 +575,26 @@ namespace CsPurity
 
         /// <summary>
         /// Removes all methods in the lookup table that were not declared in
-        /// the syntax tree.
+        /// any of the analyzed files.
         /// </summary>
         /// <returns>
         /// A new lookup table stripped of all methods who's declaration is not
-        /// in the syntax tree `root`.
+        /// in any of the the syntax trees.
         /// </returns>
         public LookupTable StripMethodsNotDeclaredInAnalyzedFiles()
         {
             // TODO: write tests for this method
             LookupTable result = Copy();
             List<Method> methods = new List<Method>();
-            foreach (var root in roots)
+            foreach (var tree in trees)
             {
-                var methodDeclarations = root
+                var methodDeclarations = tree
+                    .GetRoot()
                     .DescendantNodes()
                     .OfType<MethodDeclarationSyntax>();
                 foreach (var methodDeclaration in methodDeclarations)
                 {
-                    methods.Add(new Method(methodDeclaration, model));
+                    methods.Add(new Method(methodDeclaration));
                 }
             }
             foreach (var row in table.AsEnumerable())
@@ -577,9 +612,9 @@ namespace CsPurity
             {
                 foreach (var item in row.ItemArray)
                 {
-                    if (item is Method)
+                    if (item is Method method)
                     {
-                        result += ((Method)item);
+                        result += method;
                     }
                     else if (item is List<Method>)
                     {
@@ -634,7 +669,6 @@ namespace CsPurity
     {
         public string identifier;
         public MethodDeclarationSyntax declaration;
-        readonly SemanticModel model;
 
         /// <summary>
         /// If <paramref name="methodInvocation"/>'s declaration was found <see
@@ -648,7 +682,6 @@ namespace CsPurity
         /// <param name="model"></param>
         public Method(InvocationExpressionSyntax methodInvocation, SemanticModel model)
         {
-            this.model = model;
 
             ISymbol symbol = model.GetSymbolInfo(methodInvocation).Symbol;
             if (symbol == null)
@@ -670,43 +703,21 @@ namespace CsPurity
                 .GetSyntax();
         }
 
-        public Method(MethodDeclarationSyntax declaration, SemanticModel model)
-            : this(declaration.Identifier.Text, model)
+        public Method(MethodDeclarationSyntax declaration)
+            : this(declaration.Identifier.Text)
         {
             this.declaration = declaration;
         }
 
-        public Method(string identifier, SemanticModel model)
+        public Method(string identifier)
         {
             this.identifier = identifier;
-            this.model = model;
         }
 
         void SetIdentifier(InvocationExpressionSyntax methodInvocation)
         {
             identifier = methodInvocation.Expression.ToString();
             identifier = Regex.Replace(identifier, @"[\s,\n]+", "");
-        }
-
-        public bool ReadsStaticFieldOrProperty()
-        {
-            IEnumerable<IdentifierNameSyntax> identifiers = declaration
-                .DescendantNodes()
-                .OfType<IdentifierNameSyntax>();
-
-            foreach (var identifier in identifiers)
-            {
-                ISymbol symbol = model.GetSymbolInfo(identifier).Symbol;
-                if (symbol == null) break;
-
-                bool isStatic = symbol.IsStatic;
-                bool isField = symbol.Kind == SymbolKind.Field;
-                bool isProperty = symbol.Kind == SymbolKind.Property;
-                bool isMethod = symbol.Kind == SymbolKind.Method;
-
-                if (isStatic && (isField || isProperty) && !isMethod) return true;
-            }
-            return false;
         }
 
         public bool HasKnownDeclaration()
