@@ -446,7 +446,18 @@ namespace CsPurityTests
                 }
             ");
 
-            Analyzer.Analyze(new List<string> { file1, file2 });
+            LookupTable lt = Analyzer
+                .Analyze(new List<string> { file1, file2 })
+                .StripMethodsNotDeclaredInAnalyzedFiles();
+
+            var foo = lt.GetMethodByName("Foo");
+            var bar = lt.GetMethodByName("Bar");
+            var main = lt.GetMethodByName("Main");
+
+            Assert.IsTrue(lt.table.Rows.Count == 3);
+            Assert.IsTrue(lt.HasMethod(foo));
+            Assert.IsTrue(lt.HasMethod(bar));
+            Assert.IsTrue(lt.HasMethod(main));
         }
     }
 

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -209,84 +210,79 @@ namespace CsPurity
 
         static void Main(string[] args)
         {
-            string file1 = System.IO.File.ReadAllText("D:/Melker/other-code/console-app-1/ConsoleApp1/ConsoleApp1/Program.cs");
-            string file2 = System.IO.File.ReadAllText("D:/Melker/other-code/console-app-1/ConsoleApp1/ConsoleApp1/Class1.cs");
-
-            WriteLine(Analyze(new List<string> { file1, file2 })
-                .StripMethodsNotDeclaredInAnalyzedFiles()
-                .ToStringNoDependencySet());
-            return;
-
-            var tree1 = CSharpSyntaxTree.ParseText(file1);
-            var tree2 = CSharpSyntaxTree.ParseText(file2);
-            var model = CSharpCompilation.Create("assemblyName")
-                .AddReferences(
-                    MetadataReference.CreateFromFile(
-                        typeof(string).Assembly.Location
-                    )
-                 )
-                .AddSyntaxTrees(tree1)
-                .AddSyntaxTrees(tree2)
-                .GetSemanticModel(tree1);
-
-            var fooInvocation1 = tree1
-                .GetRoot()
-                .DescendantNodes()
-                .OfType<InvocationExpressionSyntax>()
-                .First();
-            var fooInvocation2 = tree1
-                .GetRoot()
-                .DescendantNodes()
-                .OfType<InvocationExpressionSyntax>()
-                .Last();
-
-            ISymbol symbol1 = model.GetSymbolInfo(fooInvocation1).Symbol;
-            ISymbol symbol2 = model.GetSymbolInfo(fooInvocation2).Symbol;
-            return;
-
             if (!args.Any())
             {
-                WriteLine("Please provide path to C# file to be analyzed.");
+                WriteLine("Please provide path(s) to the directory C# file(s) to be analyzed.");
             }
             else if (args.Contains("--help"))
             {
-                WriteLine(@"
-                    Checks purity of C# source file.
+                WriteLine(
+                    "Checks purity of C# source files in provided directory.\n\n" +
 
-                    -s \t use this flag if input is the C# program as a string, rather than its filepath
-                ");
+                    "Options:\n" +
+                    "  --string\tUse this flag if input is one C# file as a string.\n" +
+                    "  --file  \tUse this flag if input is the path to each file to be analyzed."
+                );
             }
-            else if (args.Contains("-s"))
+            else if (args.Contains("--string"))
             {
-                int textIndex = Array.IndexOf(args, "-s") + 1;
+                int textIndex = Array.IndexOf(args, "--string") + 1;
                 if (textIndex < args.Length)
                 {
                     string file = args[textIndex];
-                    //WriteLine(Analyze(file)
-                    //    .StripMethodsNotDeclaredInAnalyzedFile()
-                    //    .ToStringNoDependencySet());
+                    WriteLine(Analyze(file)
+                        .StripMethodsNotDeclaredInAnalyzedFiles()
+                        .ToStringNoDependencySet());
                 }
                 else
                 {
                     WriteLine("Missing program string to be parsed as an argument.");
                 }
             }
-            else
+            else if (args.Contains("--file"))
             {
                 try
                 {
-                    string file = System.IO.File.ReadAllText(args[0]);
-                    //WriteLine(Analyze(file)
-                    //    //.StripMethodsNotDeclaredInAnalyzedFile()
-                    //    .ToStringNoDependencySet());
+                    List<string> files = args.Skip(1).Select(
+                        a => System.IO.File.ReadAllText(a)
+                    ).ToList();
+
+                    WriteLine(Analyze(files)
+                        .StripMethodsNotDeclaredInAnalyzedFiles()
+                        .ToStringNoDependencySet());
                 }
                 catch (System.IO.FileNotFoundException err)
                 {
                     WriteLine(err.Message);
                 }
-                catch
+                catch (Exception err)
                 {
-                    WriteLine($"Something went wrong when reading the file {args[0]}");
+                    WriteLine($"Something went wrong when reading the file(s)" +
+                        $":\n\n{err.Message}");
+                }
+            }
+            else
+            {
+                try
+                {
+                    List<string> files = Directory.GetFiles(
+                        args[0],
+                        "*.cs",
+                        SearchOption.AllDirectories
+                    ).ToList();
+
+                    WriteLine(Analyze(files)
+                        .StripMethodsNotDeclaredInAnalyzedFiles()
+                        .ToStringNoDependencySet());
+                }
+                catch (System.IO.FileNotFoundException err)
+                {
+                    WriteLine(err.Message);
+                }
+                catch (Exception err)
+                {
+                    WriteLine($"Something went wrong when reading the file(s)" +
+                        $":\n\n{err.Message}");
                 }
             }
         }
