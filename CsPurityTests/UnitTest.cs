@@ -124,13 +124,13 @@ namespace CsPurityTests
                 }
             ");
             Analyzer analyzer = new Analyzer(file);
-            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", analyzer.root, analyzer.model);
-            var barDeclaration = HelpMethods.GetMethodDeclaration("bar", analyzer.root, analyzer.model);
-            var fazDeclaration = HelpMethods.GetMethodDeclaration("faz", analyzer.root, analyzer.model);
+            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", analyzer.lookupTable.trees.Single().GetRoot());
+            var barDeclaration = HelpMethods.GetMethodDeclaration("bar", analyzer.lookupTable.trees.Single().GetRoot());
+            var fazDeclaration = HelpMethods.GetMethodDeclaration("faz", analyzer.lookupTable.trees.Single().GetRoot());
 
-            Assert.IsTrue(fooDeclaration.ReadsStaticFieldOrProperty());
-            Assert.IsFalse(barDeclaration.ReadsStaticFieldOrProperty());
-            Assert.IsFalse(fazDeclaration.ReadsStaticFieldOrProperty());
+            Assert.IsTrue(analyzer.ReadsStaticFieldOrProperty(fooDeclaration));
+            Assert.IsFalse(analyzer.ReadsStaticFieldOrProperty(barDeclaration));
+            Assert.IsFalse(analyzer.ReadsStaticFieldOrProperty(fazDeclaration));
         }
 
         [TestMethod]
@@ -150,9 +150,9 @@ namespace CsPurityTests
                 }
             ");
             Analyzer analyzer = new Analyzer(file);
-            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", analyzer.root, analyzer.model);
+            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", analyzer.lookupTable.trees.Single().GetRoot());
 
-            Assert.IsTrue(fooDeclaration.ReadsStaticFieldOrProperty());
+            Assert.IsTrue(analyzer.ReadsStaticFieldOrProperty(fooDeclaration));
         }
 
         // Implicitly static property means a non-static property pointing to a
@@ -180,9 +180,9 @@ namespace CsPurityTests
                 }
             ");
             Analyzer analyzer = new Analyzer(file);
-            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", analyzer.root, analyzer.model);
+            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", analyzer.lookupTable.trees.Single().GetRoot());
 
-            Assert.IsTrue(fooDeclaration.ReadsStaticFieldOrProperty());
+            Assert.IsTrue(analyzer.ReadsStaticFieldOrProperty(fooDeclaration));
         }
 
         [TestMethod]
@@ -385,9 +385,9 @@ namespace CsPurityTests
         [TestMethod]
         public void TestIsBlackListed()
         {
-            Assert.IsTrue(Analyzer.PurityIsKnownPrior(new Method("Console.WriteLine", null)));
-            Assert.IsFalse(Analyzer.PurityIsKnownPrior(new Method("foo", null)));
-            Assert.IsFalse(Analyzer.PurityIsKnownPrior(new Method("", null)));
+            Assert.IsTrue(Analyzer.PurityIsKnownPrior(new Method("Console.WriteLine")));
+            Assert.IsFalse(Analyzer.PurityIsKnownPrior(new Method("foo")));
+            Assert.IsFalse(Analyzer.PurityIsKnownPrior(new Method("")));
 
             var file = (@"
                 class C1
@@ -402,6 +402,104 @@ namespace CsPurityTests
             Method foo = HelpMethods.GetMethodByName(lt, "foo");
 
             Assert.IsFalse(Analyzer.PurityIsKnownPrior(foo));
+        }
+
+        [TestMethod]
+        public void TestAnalyzeMultipleFiles()
+        {
+            var file1 = (@"
+                using System;
+                using ConsoleApp1;
+
+                namespace ConsoleApp2
+                {
+                    class Program
+                    {
+                        public static string Bar()
+                        {
+                            return ""bar"";
+                        }
+
+                        static void Main()
+                        {
+                            Bar();
+                            Console.WriteLine(Class1.Foo(""foo""));
+                        }
+                    }
+                }
+            ");
+
+            var file2 = (@"
+                using System;
+                using System.Collections.Generic;
+                using System.Text;
+
+                namespace ConsoleApp1
+                {
+                    class Class1
+                    {
+                        public static string Foo(string val)
+                        {
+                            return val;
+                        }
+                    }
+                }
+            ");
+
+            LookupTable lt = Analyzer
+                .Analyze(new List<string> { file1, file2 })
+                .StripMethodsNotDeclaredInAnalyzedFiles();
+
+            var foo = lt.GetMethodByName("Foo");
+            var bar = lt.GetMethodByName("Bar");
+            var main = lt.GetMethodByName("Main");
+
+            Assert.IsTrue(lt.table.Rows.Count == 3);
+            Assert.IsTrue(lt.HasMethod(foo));
+            Assert.IsTrue(lt.HasMethod(bar));
+            Assert.IsTrue(lt.HasMethod(main));
+        }
+
+        [TestMethod]
+        public void TestLocalFunction()
+        {
+            var file = (@"
+                class Program
+                {
+                    static string Foo()
+                    {
+                        Foz();
+                        return Bar();
+
+                        string Bar()
+                        {
+                            return Baz();
+
+                            string Baz()
+                            {
+                                string baz = ""baz"";
+                                return baz;
+                            }
+                        }
+                    }
+
+                    static int Foz()
+                    {
+                        return 0;
+                    }
+                }
+            ");
+            LookupTable lt = Analyzer.Analyze(file);
+
+            var foo = lt.GetMethodByName("Foo");
+            var foz = lt.GetMethodByName("Foz");
+
+            // Foo() should not depend on Bar() or Baz() since they are a local
+            // functions inside Foo(). The local functions are simply ignored
+            // when calculating Foo()'s dependencies.
+            //
+            // Foo() should only depend on Foz()
+            Assert.AreEqual(lt.CalculateDependencies(foo).Single(), foz);
         }
     }
 
@@ -436,12 +534,11 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = Analyzer.GetSemanticModel(tree);
-            var lt = new LookupTable(root, model);
+            var lt = new LookupTable(tree);
 
-            var foo = HelpMethods.GetMethodDeclaration("foo", root, model);
-            var bar = HelpMethods.GetMethodDeclaration("bar", root, model);
-            var baz = HelpMethods.GetMethodDeclaration("baz", root, model);
+            var foo = HelpMethods.GetMethodDeclaration("foo", root);
+            var bar = HelpMethods.GetMethodDeclaration("bar", root);
+            var baz = HelpMethods.GetMethodDeclaration("baz", root);
             var fooDependencies = lt.CalculateDependencies(foo);
             var barDependencies = lt.CalculateDependencies(bar);
             var bazDependencies = lt.CalculateDependencies(baz);
@@ -449,7 +546,7 @@ namespace CsPurityTests
             var expectedBarDependencies = new List<Method> { baz };
             var expectedBazDependencies = new List<Method> {};
 
-            var foo2 = HelpMethods.GetMethodDeclaration("foo", root, model);
+            var foo2 = HelpMethods.GetMethodDeclaration("foo", root);
             var eq = foo2.Equals(foo);
             var eq2 = foo.Equals(foo2);
             var l1 = new List<Method> { foo };
@@ -497,16 +594,15 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = Analyzer.GetSemanticModel(tree);
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
-            var lt = new LookupTable(root, model);
-            var fooDependencies = lt.CalculateDependencies(new Method(fooDeclaration, model));
+            var lt = new LookupTable(tree);
+            var fooDependencies = lt.CalculateDependencies(new Method(fooDeclaration));
             var expectedResults = root
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
                 .Where(m => m.Identifier.ToString() != "foo")
-                .Select(m => new Method(m, model));
+                .Select(m => new Method(m));
 
             Assert.IsTrue(
                 HelpMethods.HaveEqualElements(
@@ -540,19 +636,15 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = Analyzer.GetSemanticModel(tree);
-            var lt = new LookupTable(root, model);
+            var lt = new LookupTable(tree);
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
-            var fooDependencies = lt.CalculateDependencies(new Method(fooDeclaration, model));
-            //var bar = HelpMethods.GetMethodDeclaration("bar", root, model);
-            //var baz = HelpMethods.GetMethodDeclaration("baz", root, model);
-            //var expectedResults = new List<Method> { bar, baz };
+            var fooDependencies = lt.CalculateDependencies(new Method(fooDeclaration));
             var expectedResults = root
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
                 .Where(m => m.Identifier.ToString() != "foo")
-                .Select(m => new Method(m, model));
+                .Select(m => new Method(m));
 
             Assert.IsTrue(
                 HelpMethods.HaveEqualElements(
@@ -596,16 +688,15 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = Analyzer.GetSemanticModel(tree);
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
-            var lt = new LookupTable(root, model);
-            var fooDependencies = lt.CalculateDependencies(new Method(fooDeclaration, model));
+            var lt = new LookupTable(tree);
+            var fooDependencies = lt.CalculateDependencies(new Method(fooDeclaration));
             var expectedResults = root
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
                 .Where(m => m.Identifier.ToString() != "foo")
-                .Select(m => new Method(m, model));
+                .Select(m => new Method(m));
 
             Assert.IsTrue(
                 HelpMethods.HaveEqualElements(
@@ -641,13 +732,13 @@ namespace CsPurityTests
             var model = Analyzer.GetSemanticModel(tree);
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
-            var lt = new LookupTable(root, model);
-            var fooDependencies = lt.CalculateDependencies(new Method(fooDeclaration, model));
+            var lt = new LookupTable(tree);
+            var fooDependencies = lt.CalculateDependencies(new Method(fooDeclaration));
             var expectedResults = root
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
                 .Where(m => m.Identifier.ToString() != "foo")
-                .Select(m => new Method(m, model));
+                .Select(m => new Method(m));
 
             Assert.IsTrue(
                 HelpMethods.HaveEqualElements(
@@ -687,13 +778,13 @@ namespace CsPurityTests
             var model = Analyzer.GetSemanticModel(tree);
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
-            var lt = new LookupTable(root, model);
-            var fooDependencies = lt.CalculateDependencies(new Method(fooDeclaration, model));
+            var lt = new LookupTable(tree);
+            var fooDependencies = lt.CalculateDependencies(new Method(fooDeclaration));
             var expectedResults = root
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
                 .Where(m => m.Identifier.ToString() != "foo")
-                .Select(m => new Method(m, model));
+                .Select(m => new Method(m));
 
             Assert.IsTrue(
                 HelpMethods.HaveEqualElements(
@@ -730,13 +821,13 @@ namespace CsPurityTests
             var model = Analyzer.GetSemanticModel(tree);
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
-            var lt = new LookupTable(root, model);
-            var fooDependencies = lt.CalculateDependencies(new Method(fooDeclaration, model));
+            var lt = new LookupTable(tree);
+            var fooDependencies = lt.CalculateDependencies(new Method(fooDeclaration));
             var expectedResults = root
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
                 .Where(m => m.Identifier.ToString() != "foo")
-                .Select(m => new Method(m, model));
+                .Select(m => new Method(m));
 
             Assert.IsTrue(
                 HelpMethods.HaveEqualElements(
@@ -760,12 +851,12 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = Analyzer.GetSemanticModel(tree);
 
             var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
-            var lt = new LookupTable(root, model);
-            var fooDependencies = lt.CalculateDependencies(new Method(fooDeclaration, model));
+            var lt = new LookupTable(tree);
+            var fooDependencies = lt.CalculateDependencies(new Method(fooDeclaration));
             var cwlInvocation = root.DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
+            SemanticModel model = Analyzer.GetSemanticModel(new List<SyntaxTree> { tree }, tree);
             var expectedResultList = new List<Method> { new Method(cwlInvocation, model) };
 
             Assert.IsTrue(
@@ -795,16 +886,15 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = Analyzer.GetSemanticModel(tree);
 
-            LookupTable lookupTable1 = new LookupTable(root, model);
+            LookupTable lookupTable1 = new LookupTable(tree);
 
             LookupTable lookupTable2 = new LookupTable();
-            lookupTable2.AddMethod(HelpMethods.GetMethodDeclaration("foo", root, model));
-            lookupTable2.AddMethod(HelpMethods.GetMethodDeclaration("bar", root, model));
+            lookupTable2.AddMethod(HelpMethods.GetMethodDeclaration("foo", root));
+            lookupTable2.AddMethod(HelpMethods.GetMethodDeclaration("bar", root));
             lookupTable2.AddDependency(
-                HelpMethods.GetMethodDeclaration("foo", root, model),
-                HelpMethods.GetMethodDeclaration("bar", root, model)
+                HelpMethods.GetMethodDeclaration("foo", root),
+                HelpMethods.GetMethodDeclaration("bar", root)
             );
 
             Assert.IsTrue(HelpMethods.TablesAreEqual(lookupTable2.table, lookupTable1.table));
@@ -833,16 +923,15 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = Analyzer.GetSemanticModel(tree);
 
-            LookupTable lookupTable1 = new LookupTable(root, model);
+            LookupTable lookupTable1 = new LookupTable(tree);
 
             LookupTable lookupTable2 = new LookupTable();
-            lookupTable2.AddMethod(HelpMethods.GetMethodDeclaration("foo", root, model));
-            lookupTable2.AddMethod(HelpMethods.GetMethodDeclaration("bar", root, model));
+            lookupTable2.AddMethod(HelpMethods.GetMethodDeclaration("foo", root));
+            lookupTable2.AddMethod(HelpMethods.GetMethodDeclaration("bar", root));
             lookupTable2.AddDependency(
-                HelpMethods.GetMethodDeclaration("foo", root, model),
-                HelpMethods.GetMethodDeclaration("bar", root, model)
+                HelpMethods.GetMethodDeclaration("foo", root),
+                HelpMethods.GetMethodDeclaration("bar", root)
             );
 
             Assert.IsTrue(HelpMethods.TablesAreEqual(lookupTable2.table, lookupTable1.table));
@@ -863,7 +952,7 @@ namespace CsPurityTests
             LookupTable lookupTable = new LookupTable();
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var methodDeclaration = HelpMethods.GetMethodDeclaration("foo", root, lookupTable.model);
+            var methodDeclaration = HelpMethods.GetMethodDeclaration("foo", root);
 
             lookupTable.AddMethod(methodDeclaration);
 
@@ -889,12 +978,11 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = Analyzer.GetSemanticModel(tree);
 
-            LookupTable lookupTable = new LookupTable(root, model);
+            LookupTable lookupTable = new LookupTable(tree);
 
-            var foo = HelpMethods.GetMethodDeclaration("foo", root, model);
-            var bar = HelpMethods.GetMethodDeclaration("bar", root, model);
+            var foo = HelpMethods.GetMethodDeclaration("foo", root);
+            var bar = HelpMethods.GetMethodDeclaration("bar", root);
 
             Assert.IsTrue(lookupTable.HasMethod(foo));
             Assert.IsTrue(lookupTable.HasMethod(bar));
@@ -930,18 +1018,17 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = Analyzer.GetSemanticModel(tree);
-            LookupTable lookupTable = new LookupTable(root, model);
+            LookupTable lookupTable = new LookupTable(tree);
 
-            var foo = HelpMethods.GetMethodDeclaration("foo", root, model);
-            var bar = HelpMethods.GetMethodDeclaration("bar", root, model);
-            var cwl = new Method("Console.WriteLine", model);
+            var foo = HelpMethods.GetMethodDeclaration("foo", root);
+            var bar = HelpMethods.GetMethodDeclaration("bar", root);
+            var cwl = new Method("Console.WriteLine");
 
             Assert.IsTrue(lookupTable.HasMethod(foo));
             Assert.IsTrue(lookupTable.HasMethod(bar));
             Assert.IsTrue(lookupTable.HasMethod(cwl));
 
-            lookupTable = lookupTable.StripMethodsNotDeclaredInAnalyzedFile();
+            lookupTable = lookupTable.StripMethodsNotDeclaredInAnalyzedFiles();
 
             Assert.IsTrue(lookupTable.HasMethod(foo));
             Assert.IsTrue(lookupTable.HasMethod(bar));
@@ -967,9 +1054,8 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = Analyzer.GetSemanticModel(tree);
-            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", root, model);
-            var barDeclaration = HelpMethods.GetMethodDeclaration("bar", root, model);
+            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", root);
+            var barDeclaration = HelpMethods.GetMethodDeclaration("bar", root);
 
             LookupTable lookupTable = new LookupTable();
             lookupTable.AddMethod(fooDeclaration);
@@ -1005,10 +1091,9 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = Analyzer.GetSemanticModel(tree);
-            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", root, model);
-            var barDeclaration = HelpMethods.GetMethodDeclaration("bar", root, model);
-            var bazDeclaration = HelpMethods.GetMethodDeclaration("baz", root, model);
+            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", root);
+            var barDeclaration = HelpMethods.GetMethodDeclaration("bar", root);
+            var bazDeclaration = HelpMethods.GetMethodDeclaration("baz", root);
 
             LookupTable lookupTable = new LookupTable();
             lookupTable.AddMethod(fooDeclaration);
@@ -1034,7 +1119,7 @@ namespace CsPurityTests
             Assert.IsFalse(lookupTable.HasDependency(fooDeclaration, bazDeclaration));
             Assert.IsFalse(lookupTable.HasDependency(barDeclaration, bazDeclaration));
 
-            LookupTable lookupTable2 = new LookupTable(root, model);
+            LookupTable lookupTable2 = new LookupTable(tree);
 
             Assert.IsTrue(lookupTable2.HasDependency(fooDeclaration, barDeclaration));
             Assert.IsTrue(lookupTable2.HasDependency(fooDeclaration, bazDeclaration));
@@ -1072,11 +1157,10 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = Analyzer.GetSemanticModel(tree);
-            var bazDeclaration = HelpMethods.GetMethodDeclaration("baz", root, model);
-            var fozDeclaration = HelpMethods.GetMethodDeclaration("foz", root, model);
+            var bazDeclaration = HelpMethods.GetMethodDeclaration("baz", root);
+            var fozDeclaration = HelpMethods.GetMethodDeclaration("foz", root);
 
-            LookupTable lookupTable = new LookupTable(root, model);
+            LookupTable lookupTable = new LookupTable(tree);
 
             var expectedResult = new List<Method>() {bazDeclaration, fozDeclaration};
 
@@ -1128,13 +1212,12 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = Analyzer.GetSemanticModel(tree);
-            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", root, model);
-            var barDeclaration = HelpMethods.GetMethodDeclaration("bar", root, model);
-            var bazDeclaration = HelpMethods.GetMethodDeclaration("baz", root, model);
-            var fozDeclaration = HelpMethods.GetMethodDeclaration("foz", root, model);
+            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", root);
+            var barDeclaration = HelpMethods.GetMethodDeclaration("bar", root);
+            var bazDeclaration = HelpMethods.GetMethodDeclaration("baz", root);
+            var fozDeclaration = HelpMethods.GetMethodDeclaration("foz", root);
 
-            LookupTable lookupTable = new LookupTable(root, model);
+            LookupTable lookupTable = new LookupTable(tree);
 
             Assert.AreEqual(lookupTable.GetPurity(fooDeclaration), Purity.Pure);
             Assert.AreEqual(lookupTable.GetPurity(barDeclaration), Purity.Pure);
@@ -1191,13 +1274,12 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = Analyzer.GetSemanticModel(tree);
-            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", root, model);
-            var barDeclaration = HelpMethods.GetMethodDeclaration("bar", root, model);
-            var bazDeclaration = HelpMethods.GetMethodDeclaration("baz", root, model);
-            var fozDeclaration = HelpMethods.GetMethodDeclaration("foz", root, model);
+            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", root);
+            var barDeclaration = HelpMethods.GetMethodDeclaration("bar", root);
+            var bazDeclaration = HelpMethods.GetMethodDeclaration("baz", root);
+            var fozDeclaration = HelpMethods.GetMethodDeclaration("foz", root);
 
-            LookupTable lookupTable = new LookupTable(root, model);
+            LookupTable lookupTable = new LookupTable(tree);
 
             lookupTable.SetPurity(fooDeclaration, Purity.Impure);
             lookupTable.SetPurity(barDeclaration, Purity.Impure);
@@ -1251,13 +1333,12 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = Analyzer.GetSemanticModel(tree);
-            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", root, model);
-            var barDeclaration = HelpMethods.GetMethodDeclaration("bar", root, model);
-            var bazDeclaration = HelpMethods.GetMethodDeclaration("baz", root, model);
-            var fozDeclaration = HelpMethods.GetMethodDeclaration("foz", root, model);
+            var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", root);
+            var barDeclaration = HelpMethods.GetMethodDeclaration("bar", root);
+            var bazDeclaration = HelpMethods.GetMethodDeclaration("baz", root);
+            var fozDeclaration = HelpMethods.GetMethodDeclaration("foz", root);
 
-            LookupTable lookupTable = new LookupTable(root, model);
+            LookupTable lookupTable = new LookupTable(tree);
 
             var result = lookupTable.GetCallers(bazDeclaration);
             var expected = new List<Method> {fooDeclaration, barDeclaration};
@@ -1274,8 +1355,7 @@ namespace CsPurityTests
     {
         public static Method GetMethodDeclaration(
             string name,
-            SyntaxNode root,
-            SemanticModel model
+            SyntaxNode root
         )
         {
             var methodDeclaration = root
@@ -1283,7 +1363,7 @@ namespace CsPurityTests
                 .OfType<MethodDeclarationSyntax>()
                 .Where(m => m.Identifier.Text == name)
                 .Single();
-            return new Method(methodDeclaration, model);
+            return new Method(methodDeclaration);
         }
 
         public static Method GetMethodByName(
@@ -1291,13 +1371,19 @@ namespace CsPurityTests
             string name
         )
         {
-            var methodDeclaration = lookupTable
-                .root
-                .DescendantNodes()
-                .OfType<MethodDeclarationSyntax>()
-                .Where(m => m.Identifier.Text == name)
-                .Single();
-            return new Method(methodDeclaration, lookupTable.model);
+            foreach (var tree in lookupTable.trees)
+            {
+                var methodDeclarations = tree
+                    .GetRoot()
+                    .DescendantNodes()
+                    .OfType<MethodDeclarationSyntax>()
+                    .Where(m => m.Identifier.Text == name);
+                if (methodDeclarations.Any())
+                {
+                    return new Method(methodDeclarations.Single());
+                }
+            }
+            return null;
         }
 
         // Rows need to be in the same order in both tables
@@ -1361,10 +1447,11 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var model = Analyzer.GetSemanticModel(tree);
 
             var clwInvocation = root.DescendantNodes().OfType<InvocationExpressionSyntax>().First();
             var barInvocation = root.DescendantNodes().OfType<InvocationExpressionSyntax>().Last();
+
+            SemanticModel model = Analyzer.GetSemanticModel(new List<SyntaxTree> { tree }, tree);
 
             var clwMethod = new Method(clwInvocation, model);
             var barMethod = new Method(barInvocation, model);
@@ -1374,7 +1461,7 @@ namespace CsPurityTests
             Assert.AreEqual(barMethod.identifier, null);
             Assert.AreEqual(
                 barMethod,
-                HelpMethods.GetMethodDeclaration("bar", root, model)
+                HelpMethods.GetMethodDeclaration("bar", root)
             );
         }
     }
