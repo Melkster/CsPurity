@@ -459,6 +459,48 @@ namespace CsPurityTests
             Assert.IsTrue(lt.HasMethod(bar));
             Assert.IsTrue(lt.HasMethod(main));
         }
+
+        [TestMethod]
+        public void TestLocalFunction()
+        {
+            var file = (@"
+                class Program
+                {
+                    static string Foo()
+                    {
+                        Foz();
+                        return Bar();
+
+                        string Bar()
+                        {
+                            return Baz();
+
+                            string Baz()
+                            {
+                                string baz = ""baz"";
+                                return baz;
+                            }
+                        }
+                    }
+
+                    static int Foz()
+                    {
+                        return 0;
+                    }
+                }
+            ");
+            LookupTable lt = Analyzer.Analyze(file);
+
+            var foo = lt.GetMethodByName("Foo");
+            var foz = lt.GetMethodByName("Foz");
+
+            // Foo() should not depend on Bar() or Baz() since they are a local
+            // functions inside Foo(). The local functions are simply ignored
+            // when calculating Foo()'s dependencies.
+            //
+            // Foo() should only depend on Foz()
+            Assert.AreEqual(lt.CalculateDependencies(foo).Single(), foz);
+        }
     }
 
     [TestClass]

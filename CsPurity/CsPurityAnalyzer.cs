@@ -208,6 +208,15 @@ namespace CsPurity
             return false;
         }
 
+        static void AnalyzeAndPrint(string file)
+        {
+            WriteLine(
+                Analyze(file)
+                    .StripMethodsNotDeclaredInAnalyzedFiles()
+                    .ToStringNoDependencySet()
+            );
+        }
+
         static void Main(string[] args)
         {
             if (!args.Any())
@@ -230,16 +239,14 @@ namespace CsPurity
                 if (textIndex < args.Length)
                 {
                     string file = args[textIndex];
-                    WriteLine(Analyze(file)
-                        .StripMethodsNotDeclaredInAnalyzedFiles()
-                        .ToStringNoDependencySet());
+                    AnalyzeAndPrint(file);
                 }
                 else
                 {
                     WriteLine("Missing program string to be parsed as an argument.");
                 }
             }
-            else if (args.Contains("--file"))
+            else if (args.Contains("--file") || args.Contains("--files"))
             {
                 try
                 {
@@ -247,9 +254,11 @@ namespace CsPurity
                         a => System.IO.File.ReadAllText(a)
                     ).ToList();
 
-                    WriteLine(Analyze(files)
-                        .StripMethodsNotDeclaredInAnalyzedFiles()
-                        .ToStringNoDependencySet());
+                    WriteLine(
+                        Analyze(files)
+                            .StripMethodsNotDeclaredInAnalyzedFiles()
+                            .ToStringNoDependencySet()
+                    );
                 }
                 catch (System.IO.FileNotFoundException err)
                 {
@@ -269,11 +278,13 @@ namespace CsPurity
                         args[0],
                         "*.cs",
                         SearchOption.AllDirectories
-                    ).ToList();
+                    ).Select(a => System.IO.File.ReadAllText(a)).ToList();
 
-                    WriteLine(Analyze(files)
-                        .StripMethodsNotDeclaredInAnalyzedFiles()
-                        .ToStringNoDependencySet());
+                    WriteLine(
+                        Analyze(files)
+                            .StripMethodsNotDeclaredInAnalyzedFiles()
+                            .ToStringNoDependencySet()
+                    );
                 }
                 catch (System.IO.FileNotFoundException err)
                 {
@@ -307,7 +318,7 @@ namespace CsPurity
             this.trees = trees;
 
             BuildLookupTable();
-            this.workingSet = new WorkingSet(this);
+            workingSet = new WorkingSet(this);
         }
 
         public LookupTable(SyntaxTree tree) : this(new List<SyntaxTree> { tree }) { }
@@ -392,9 +403,10 @@ namespace CsPurity
                     invocation.SyntaxTree.GetRoot().SyntaxTree
                 );
                 results.Add(new Method(invocation, model));
-                results = results.Union(
-                    CalculateDependencies(new Method(invocation, model))
-                ).ToList();
+                results = results
+                    .Where(m => !m .isLocalFunction) // excludes local functions
+                    .Union(CalculateDependencies(new Method(invocation, model)))
+                    .ToList();
             }
             return results;
         }
@@ -612,10 +624,10 @@ namespace CsPurity
                     {
                         result += method;
                     }
-                    else if (item is List<Method>)
+                    else if (item is List<Method> methods)
                     {
                         List<string> resultList = new List<string>();
-                        var dependencies = (List<Method>)item;
+                        var dependencies = methods;
                         foreach (var dependency in dependencies)
                         {
                             if (dependency == null) resultList.Add("-");
@@ -665,6 +677,7 @@ namespace CsPurity
     {
         public string identifier;
         public MethodDeclarationSyntax declaration;
+        public bool isLocalFunction = false;
 
         /// <summary>
         /// If <paramref name="methodInvocation"/>'s declaration was found <see
@@ -674,6 +687,10 @@ namespace CsPurity
         /// If no declaration was found, <see cref="declaration"/> is set to
         /// null and <see cref="identifier"/> set to <paramref
         /// name="methodInvocation"/>'s identifier instead.
+        ///
+        /// If the method is a local function, i.e. declared inside a method,
+        /// isLocalFunction is set to true, otherwise it is false.
+        ///
         /// <param name="methodInvocation"></param>
         /// <param name="model"></param>
         public Method(InvocationExpressionSyntax methodInvocation, SemanticModel model)
@@ -692,6 +709,13 @@ namespace CsPurity
                 SetIdentifier(methodInvocation);
                 return;
             };
+
+            // Handles local functions
+            if ((symbol as IMethodSymbol).MethodKind == MethodKind.LocalFunction)
+            {
+                isLocalFunction = true;
+                return;
+            }
 
             // not sure if this cast from SyntaxNode to MethodDeclarationSyntax always works
             declaration = (MethodDeclarationSyntax)declaringReferences
@@ -784,7 +808,7 @@ namespace CsPurity
         /// </summary>
         public void Calculate()
         {
-            this.Clear();
+            Clear();
 
             foreach (var row in lookupTable.table.AsEnumerable())
             {
@@ -793,7 +817,7 @@ namespace CsPurity
                     .Field<List<Method>>("dependencies");
                 if (!dependencies.Any() && !history.Contains(identifier))
                 {
-                    this.Add(identifier);
+                    Add(identifier);
                     history.Add(identifier);
                 }
             }
