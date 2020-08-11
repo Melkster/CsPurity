@@ -500,6 +500,38 @@ namespace CsPurityTests
             //
             // Foo() should only depend on Foz()
             Assert.AreEqual(lt.CalculateDependencies(foo).Single(), foz);
+            Assert.IsTrue(lt.HasMethod(foo));
+            Assert.IsTrue(lt.HasMethod(foz));
+            Assert.AreEqual(lt.table.Rows.Count, 2);
+        }
+
+        [TestMethod]
+        public void TestDelegateFunction()
+        {
+            var file = (@"
+                class Program
+                {
+                    // delegate declaration
+                    public delegate void printString(string s);
+
+                    public static void WriteToScreen(string str) {
+                       Console.WriteLine(""The String is: {0}"", str);
+                    }
+
+                    public static void sendString(printString ps) {
+                       ps(""Hello World"");
+                    }
+
+                    static void Foo() {
+                       printString ps1 = new printString(WriteToScreen);
+                       sendString(ps1);
+                    }
+                }
+            ");
+            LookupTable lt = Analyzer.Analyze(file);
+            Assert.AreEqual(lt.table.Rows.Count, 4);
+            WriteLine(lt);
+            return;
         }
     }
 
@@ -557,15 +589,15 @@ namespace CsPurityTests
             Assert.IsTrue(eq2);
 
             Assert.IsTrue(
-                HelpMethods.HaveEqualElements( fooDependencies, expectedFooDependencies )
+                HelpMethods.HaveEqualElements(fooDependencies, expectedFooDependencies)
             );
 
             Assert.IsTrue(
-                HelpMethods.HaveEqualElements( barDependencies, expectedBarDependencies )
+                HelpMethods.HaveEqualElements(barDependencies, expectedBarDependencies)
             );
 
             Assert.IsTrue(
-                HelpMethods.HaveEqualElements( bazDependencies, expectedBazDependencies )
+                HelpMethods.HaveEqualElements(bazDependencies, expectedBazDependencies)
             );
         }
 

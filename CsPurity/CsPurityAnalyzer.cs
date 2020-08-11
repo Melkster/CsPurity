@@ -380,6 +380,13 @@ namespace CsPurity
         {
             List<Method> results = new List<Method>();
 
+            // If `method` is a delegate or local function we simply return the
+            // empty `results` list
+            if (method.isDelegateFunction || method.isLocalFunction)
+            {
+                return results;
+            }
+
             // If `method` doesn't have a known declaration we cannot calculate
             // its dependencies
             if (!method.HasKnownDeclaration())
@@ -402,9 +409,11 @@ namespace CsPurity
                     trees,
                     invocation.SyntaxTree.GetRoot().SyntaxTree
                 );
+
                 results.Add(new Method(invocation, model));
                 results = results
-                    .Where(m => !m .isLocalFunction) // excludes local functions
+                    .Where(m => !m.isLocalFunction) // excludes local functions
+                    .Where(m => !m.isDelegateFunction) // excludes delegate functions
                     .Union(CalculateDependencies(new Method(invocation, model)))
                     .ToList();
             }
@@ -678,6 +687,7 @@ namespace CsPurity
         public string identifier;
         public MethodDeclarationSyntax declaration;
         public bool isLocalFunction = false;
+        public bool isDelegateFunction = false;
 
         /// <summary>
         /// If <paramref name="methodInvocation"/>'s declaration was found <see
@@ -714,6 +724,12 @@ namespace CsPurity
             if ((symbol as IMethodSymbol).MethodKind == MethodKind.LocalFunction)
             {
                 isLocalFunction = true;
+                return;
+            }
+
+            if ((symbol as IMethodSymbol).MethodKind == MethodKind.DelegateInvoke)
+            {
+                isDelegateFunction = true;
                 return;
             }
 
