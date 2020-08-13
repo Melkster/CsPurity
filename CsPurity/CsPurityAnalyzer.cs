@@ -366,7 +366,7 @@ namespace CsPurity
         }
 
         /// <summary>
-        /// Recursively computes a list of all unique methods that a method
+        /// Computes a list of all unique methods that a method
         /// depends on. If any method doesn't have a known declaration, its
         /// purity level is set to `Unknown`.
         /// </summary>
@@ -379,43 +379,56 @@ namespace CsPurity
         public List<Method> CalculateDependencies(Method method)
         {
             List<Method> results = new List<Method>();
+            Stack<Method> stack = new Stack<Method>();
+            stack.Push(method);
 
-            // If `method` is a delegate or local function we simply return the
-            // empty `results` list
-            if (method.isDelegateFunction || method.isLocalFunction)
+            while (stack.Any())
             {
-                return results;
-            }
+                Method current = stack.Pop();
 
-            // If `method` doesn't have a known declaration we cannot calculate
-            // its dependencies
-            if (!method.HasKnownDeclaration())
-            {
-                AddMethod(method);
-                SetPurity(method, Purity.Unknown);
-                return results;
-            };
+                // If the method is a delegate or local function we simply
+                // ignore it
+                if (current.isDelegateFunction || current.isLocalFunction)
+                {
+                    continue;
+                }
 
-            var methodInvocations = method
-                .declaration
-                .DescendantNodes()
-                .OfType<InvocationExpressionSyntax>();
-            if (!methodInvocations.Any()) return results;
+                // If the method doesn't have a known declaration we cannot
+                // calculate its dependencies, and so we ignore it
+                if (!current.HasKnownDeclaration())
+                {
+                    AddMethod(current);
+                    SetPurity(current, Purity.Unknown);
+                    continue;
+                };
 
-            foreach (var invocation in methodInvocations)
-            {
-                // TODO: not sure if this is gonna work:
-                SemanticModel model = Analyzer.GetSemanticModel(
-                    trees,
-                    invocation.SyntaxTree.GetRoot().SyntaxTree
-                );
+                var methodInvocations = current
+                    .declaration
+                    .DescendantNodes()
+                    .OfType<InvocationExpressionSyntax>();
+                if (!methodInvocations.Any()) continue;
 
-                results.Add(new Method(invocation, model));
-                results = results
-                    .Where(m => !m.isLocalFunction) // excludes local functions
-                    .Where(m => !m.isDelegateFunction) // excludes delegate functions
-                    .Union(CalculateDependencies(new Method(invocation, model)))
-                    .ToList();
+                foreach (var invocation in methodInvocations)
+                {
+                    SemanticModel model = Analyzer.GetSemanticModel(
+                        trees,
+                        invocation.SyntaxTree.GetRoot().SyntaxTree
+                    );
+
+                    Method invoked = new Method(invocation, model);
+
+                    // Excludes delegate and local functions
+                    if (invoked.isLocalFunction || invoked.isDelegateFunction)
+                    {
+                        continue;
+                    }
+
+                    if (!results.Contains(invoked))
+                    {
+                        results.Add(invoked);
+                    }
+                    stack.Push(invoked);
+                }
             }
             return results;
         }
