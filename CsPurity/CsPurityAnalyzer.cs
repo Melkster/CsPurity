@@ -366,15 +366,14 @@ namespace CsPurity
         }
 
         /// <summary>
-        /// Computes a list of all unique methods that a method
-        /// depends on. If any method doesn't have a known declaration, its
-        /// purity level is set to `Unknown`.
+        /// Computes a list of all unique methods that a method depends on. If
+        /// any method doesn't have a known declaration, its purity level is
+        /// set to `Unknown`.
         /// </summary>
         /// <param name="method">The method</param>
         /// <returns>
-        /// A list of all *unique* MethodDeclarationSyntaxes that <paramref
-        /// name="method"/> depends on. If <paramref name="method"/> lacks a
-        /// known declaration, returns an empty list.
+        /// A list of all unique Methods that <paramref name="method"/>
+        /// depends on.
         /// </returns>
         public List<Method> CalculateDependencies(Method method)
         {
