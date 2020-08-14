@@ -219,6 +219,8 @@ namespace CsPurity
 
         static void Main(string[] args)
         {
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+
             if (!args.Any())
             {
                 WriteLine("Please provide path(s) to the directory C# file(s) to be analyzed.");
@@ -296,6 +298,11 @@ namespace CsPurity
                         $":\n\n{err.Message}");
                 }
             }
+
+            watch.Stop();
+            var minutes = watch.Elapsed.Minutes;
+            var seconds = watch.Elapsed.Seconds;
+            WriteLine($"Time taken: {minutes} min, {seconds} sec");
         }
     }
 
@@ -407,13 +414,13 @@ namespace CsPurity
                     .OfType<InvocationExpressionSyntax>();
                 if (!methodInvocations.Any()) continue;
 
+                SemanticModel model = Analyzer.GetSemanticModel(
+                    trees,
+                    current.declaration.SyntaxTree.GetRoot().SyntaxTree
+                );
+
                 foreach (var invocation in methodInvocations)
                 {
-                    SemanticModel model = Analyzer.GetSemanticModel(
-                        trees,
-                        invocation.SyntaxTree.GetRoot().SyntaxTree
-                    );
-
                     Method invoked = new Method(invocation, model);
 
                     // Excludes delegate and local functions
