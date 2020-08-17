@@ -221,7 +221,8 @@ namespace CsPurity
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
 
-            if (!args.Any())
+            //if (!args.Any())
+            if (false)
             {
                 WriteLine("Please provide path(s) to the directory C# file(s) to be analyzed.");
             }
@@ -277,7 +278,8 @@ namespace CsPurity
                 try
                 {
                     List<string> files = Directory.GetFiles(
-                        args[0],
+                        //args[0],
+                        "D:/Melker/other-code/antlr4/runtime/CSharp/runtime/CSharp/Antlr4.Runtime/Tree",
                         "*.cs",
                         SearchOption.AllDirectories
                     ).Select(a => System.IO.File.ReadAllText(a)).ToList();
@@ -292,11 +294,11 @@ namespace CsPurity
                 {
                     WriteLine(err.Message);
                 }
-                catch (Exception err)
-                {
-                    WriteLine($"Something went wrong when reading the file(s)" +
-                        $":\n\n{err.Message}");
-                }
+                //catch (Exception err)
+                //{
+                //    WriteLine($"Something went wrong when reading the file(s)" +
+                //        $":\n\n{err.Message}");
+                //}
             }
 
             watch.Stop();
@@ -358,6 +360,7 @@ namespace CsPurity
                 {
                     Method method = new Method(methodDeclaration);
                     AddMethod(method);
+                    WriteLine($"Calculating dependencies for {method}.");
                     var dependencies = CalculateDependencies(method);
                     foreach (var dependency in dependencies)
                     {
@@ -365,6 +368,7 @@ namespace CsPurity
                     }
                 }
             }
+            WriteLine("Lookup table constructed.");
         }
 
         public List<Method> GetDependencies(Method method)
@@ -387,6 +391,11 @@ namespace CsPurity
             List<Method> results = new List<Method>();
             Stack<Method> stack = new Stack<Method>();
             stack.Push(method);
+
+            SemanticModel model = Analyzer.GetSemanticModel(
+                trees,
+                method.GetRoot().SyntaxTree
+            );
 
             while (stack.Any())
             {
@@ -414,10 +423,15 @@ namespace CsPurity
                     .OfType<InvocationExpressionSyntax>();
                 if (!methodInvocations.Any()) continue;
 
-                SemanticModel model = Analyzer.GetSemanticModel(
-                    trees,
-                    current.declaration.SyntaxTree.GetRoot().SyntaxTree
-                );
+
+                // Only recalculate `model` if `current` has a different syntax
+                // tree to `method`
+                if (!current.HasEqualSyntaxTreeTo(method)) {
+                    model = Analyzer.GetSemanticModel(
+                        trees,
+                        current.GetRoot().SyntaxTree
+                    );
+                }
 
                 foreach (var invocation in methodInvocations)
                 {
@@ -564,7 +578,7 @@ namespace CsPurity
             return new LookupTable(result, this);
         }
 
-        DataRow GetMethodRow(Method method)
+        public DataRow GetMethodRow(Method method)
         {
             return table
                 .AsEnumerable()
@@ -780,6 +794,16 @@ namespace CsPurity
             return declaration != null;
         }
 
+        public SyntaxNode GetRoot()
+        {
+            return declaration?.SyntaxTree.GetRoot();
+        }
+
+        public bool HasEqualSyntaxTreeTo(Method method)
+        {
+            return GetRoot().Equals(method.GetRoot());
+        }
+
         public override bool Equals(Object obj)
         {
             if (!(obj is Method)) return false;
@@ -809,12 +833,14 @@ namespace CsPurity
 
         public override string ToString()
         {
-            if (HasKnownDeclaration()) {
-                SyntaxToken classIdentifier = declaration
-                    .Ancestors()
-                    .OfType<ClassDeclarationSyntax>()
-                    .First()
-                    .Identifier;
+            if (!HasKnownDeclaration())  return identifier;
+
+            var classAncestors = declaration
+                .Ancestors()
+                .OfType<ClassDeclarationSyntax>();
+
+            if (classAncestors.Any()) {
+                SyntaxToken classIdentifier = classAncestors.First().Identifier;
                 string className = classIdentifier.Text;
                 string returnType = declaration.ReturnType.ToString();
                 string methodName = declaration.Identifier.Text;
