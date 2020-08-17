@@ -392,6 +392,10 @@ namespace CsPurity
             Stack<Method> stack = new Stack<Method>();
             stack.Push(method);
 
+            // For keeping track of invocations in order to detect recursive
+            // function calls
+            Stack<Method> invocations = new Stack<Method>();
+
             SemanticModel model = Analyzer.GetSemanticModel(
                 trees,
                 method.GetRoot().SyntaxTree
@@ -444,8 +448,9 @@ namespace CsPurity
                     }
 
                     // Handles recursive calls. Don't continue analyzing
-                    // invoked method if it is equal to `method`
-                    if (invoked.Equals(method))
+                    // invoked method if it is equal to `method` or if it is in
+                    // `invocations` (which means that it was called recursively)
+                    if (invoked.Equals(method) || invocations.Contains(invoked))
                     {
                         continue;
                     }
@@ -454,6 +459,8 @@ namespace CsPurity
                     {
                         results.Add(invoked);
                     }
+
+                    invocations.Push(invoked);
                     stack.Push(invoked);
                 }
             }
