@@ -221,8 +221,7 @@ namespace CsPurity
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
 
-            //if (!args.Any())
-            if (false)
+            if (!args.Any())
             {
                 WriteLine("Please provide path(s) to the directory C# file(s) to be analyzed.");
             }
@@ -278,8 +277,7 @@ namespace CsPurity
                 try
                 {
                     List<string> files = Directory.GetFiles(
-                        //args[0],
-                        "D:/Melker/other-code/antlr4/runtime/CSharp/runtime/CSharp/Antlr4.Runtime/Tree",
+                        args[0],
                         "*.cs",
                         SearchOption.AllDirectories
                     ).Select(a => System.IO.File.ReadAllText(a)).ToList();
@@ -294,11 +292,11 @@ namespace CsPurity
                 {
                     WriteLine(err.Message);
                 }
-                //catch (Exception err)
-                //{
-                //    WriteLine($"Something went wrong when reading the file(s)" +
-                //        $":\n\n{err.Message}");
-                //}
+                catch (Exception err)
+                {
+                    WriteLine($"Something went wrong when reading the file(s)" +
+                        $":\n\n{err.Message}");
+                }
             }
 
             watch.Stop();
