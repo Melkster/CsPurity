@@ -531,7 +531,191 @@ namespace CsPurityTests
             LookupTable lt = Analyzer.Analyze(file);
             Assert.AreEqual(lt.table.Rows.Count, 4);
             WriteLine(lt);
-            return;
+        }
+
+        [TestMethod]
+        public void TestOverloading()
+        {
+            var file = (@"
+                class Program
+                {
+                    int Foo(int i) {
+                        return i * i;
+                    }
+
+                    int Foo(int i1, int i2) {
+                        Console.WriteLine(i1);
+                        return i1 * i2;
+                    }
+
+                    int Bar() {
+                        return Foo(2) + Foo(3, 4);
+                    }
+
+                    int Bar1() {
+                        return Foo(2);
+                    }
+
+                    int Bar2() {
+                        return Foo(3, 4);
+                    }
+                }
+            ");
+            LookupTable lt = Analyzer.Analyze(file);
+            var tree = lt.trees.Single();
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+
+            var foo1 = new Method(
+                root
+                    .DescendantNodes()
+                    .OfType<MethodDeclarationSyntax>()
+                    .Where(m => m.Identifier.Text == "Foo")
+                    .First()
+                );
+            var foo2 = new Method(
+                root
+                    .DescendantNodes()
+                    .OfType<MethodDeclarationSyntax>()
+                    .Where(m => m.Identifier.Text == "Foo")
+                    .Last()
+                );
+            var bar = HelpMethods.GetMethodByName(lt, "Bar");
+            var bar1 = HelpMethods.GetMethodByName(lt, "Bar1");
+            var bar2 = HelpMethods.GetMethodByName(lt, "Bar2");
+
+            Assert.AreEqual(lt.GetPurity(bar), Purity.Impure);
+            Assert.IsTrue(HelpMethods.HaveEqualElements(
+                lt.GetDependencies(bar),
+                new List<Method> { foo1, foo2 }
+            ));
+
+            Assert.AreEqual(lt.GetPurity(bar1), Purity.Pure);
+            Assert.IsTrue(HelpMethods.HaveEqualElements(
+                lt.GetDependencies(bar1),
+                new List<Method> { foo1 }
+            ));
+
+            Assert.AreEqual(lt.GetPurity(bar2), Purity.Impure);
+            Assert.IsTrue(HelpMethods.HaveEqualElements(
+                lt.GetDependencies(bar2),
+                new List<Method> { foo2 }
+            ));
+        }
+
+        // For now, constructors are ignored by Analyzer.Analyze() and so the
+        // constructor for class B is never analyzed
+        [TestMethod]
+        public void TestConstructorCall()
+        {
+            var file = (@"
+                class A
+                {
+                    void Foo(int i) {
+                        new B(i);
+                    }
+                }
+
+                class B
+                {
+                    int val;
+                    public B(int val) {
+                        this.val = val;
+                    }
+                }
+            ");
+            LookupTable lt = Analyzer.Analyze(file);
+            var foo = lt.GetMethodByName("Foo");
+
+            Assert.AreEqual(lt.table.Rows.Count, 1);
+            Assert.IsTrue(lt.HasMethod(foo));
+        }
+
+        [TestMethod]
+        public void TestRecursion()
+        {
+            var file = (@"
+                class A
+                {
+                    int Foo(int i) {
+                        if (i == 0) return 0;
+                        return 1 + Foo(i - 1);
+                    }
+                }
+            ");
+            LookupTable lt = Analyzer.Analyze(file);
+            var foo = lt.GetMethodByName("Foo");
+
+            Assert.AreEqual(lt.table.Rows.Count, 1);
+            Assert.IsTrue(lt.HasMethod(foo));
+            Assert.AreEqual(lt.GetPurity(foo), Purity.Pure);
+            Assert.IsTrue(!lt.GetDependencies(foo).Any());
+        }
+
+        [TestMethod]
+        public void TestSecondHandRecursion()
+        {
+            var file = (@"
+                class A
+                {
+                    int Foo(int i, int j) {
+                        return Foo(i) + Foo(j);
+                    }
+
+                    int Foo(int i) {
+                        if (i == 0) return 0;
+                        return 1 + Foo(i - 1);
+                    }
+                }
+            ");
+            LookupTable lt = Analyzer.Analyze(file);
+            var foo1 = new Method(lt
+                .trees
+                .Single()
+                .GetRoot()
+                .DescendantNodes()
+                .OfType<MethodDeclarationSyntax>()
+                .Where(m => m.Identifier.Text == "Foo")
+                .First()
+            );
+            var foo2 = new Method(lt
+                .trees
+                .Single()
+                .GetRoot()
+                .DescendantNodes()
+                .OfType<MethodDeclarationSyntax>()
+                .Where(m => m.Identifier.Text == "Foo")
+                .Last()
+            );
+
+            Assert.AreEqual(lt.table.Rows.Count, 2);
+            Assert.AreEqual(lt.GetDependencies(foo1).Single(), foo2);
+            Assert.IsTrue(!lt.GetDependencies(foo2).Any());
+        }
+
+        [TestMethod]
+        public void TestMutualRecursion()
+        {
+            var file = (@"
+                class A
+                {
+                    int Foo(int i) {
+                        if (i == 0) return 0;
+                        return Bar(i - 1)
+                    }
+
+                    int Bar(int i) {
+                        if (i == 0) return 0;
+                        return 1 + Foo(i - 1);
+                    }
+                }
+            ");
+            LookupTable lt = Analyzer.Analyze(file);
+            var foo = HelpMethods.GetMethodByName(lt, "Foo");
+            var bar = HelpMethods.GetMethodByName(lt, "Bar");
+
+            Assert.AreEqual(lt.table.Rows.Count, 2);
+            Assert.AreEqual(lt.GetDependencies(foo).Single(), bar);
+            Assert.AreEqual(lt.GetDependencies(bar).Single(), foo);
         }
     }
 

@@ -219,7 +219,10 @@ namespace CsPurity
 
         static void Main(string[] args)
         {
-            if (!args.Any())
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+
+            //if (!args.Any())
+            if (false)
             {
                 WriteLine("Please provide path(s) to the directory C# file(s) to be analyzed.");
             }
@@ -275,7 +278,8 @@ namespace CsPurity
                 try
                 {
                     List<string> files = Directory.GetFiles(
-                        args[0],
+                        //args[0],
+                        "D:/Melker/other-code/antlr4/runtime/CSharp/runtime/CSharp/Antlr4.Runtime/Tree",
                         "*.cs",
                         SearchOption.AllDirectories
                     ).Select(a => System.IO.File.ReadAllText(a)).ToList();
@@ -290,12 +294,17 @@ namespace CsPurity
                 {
                     WriteLine(err.Message);
                 }
-                catch (Exception err)
-                {
-                    WriteLine($"Something went wrong when reading the file(s)" +
-                        $":\n\n{err.Message}");
-                }
+                //catch (Exception err)
+                //{
+                //    WriteLine($"Something went wrong when reading the file(s)" +
+                //        $":\n\n{err.Message}");
+                //}
             }
+
+            watch.Stop();
+            var minutes = watch.Elapsed.Minutes;
+            var seconds = watch.Elapsed.Seconds;
+            WriteLine($"Time taken: {minutes} min, {seconds} sec");
         }
     }
 
@@ -351,6 +360,7 @@ namespace CsPurity
                 {
                     Method method = new Method(methodDeclaration);
                     AddMethod(method);
+                    WriteLine($"Calculating dependencies for {method}.");
                     var dependencies = CalculateDependencies(method);
                     foreach (var dependency in dependencies)
                     {
@@ -358,6 +368,7 @@ namespace CsPurity
                     }
                 }
             }
+            WriteLine("Lookup table constructed.");
         }
 
         public List<Method> GetDependencies(Method method)
@@ -380,6 +391,15 @@ namespace CsPurity
             List<Method> results = new List<Method>();
             Stack<Method> stack = new Stack<Method>();
             stack.Push(method);
+
+            // For keeping track of invocations in order to detect recursive
+            // function calls
+            Stack<Method> invocations = new Stack<Method>();
+
+            SemanticModel model = Analyzer.GetSemanticModel(
+                trees,
+                method.GetRoot().SyntaxTree
+            );
 
             while (stack.Any())
             {
@@ -407,13 +427,18 @@ namespace CsPurity
                     .OfType<InvocationExpressionSyntax>();
                 if (!methodInvocations.Any()) continue;
 
+
+                // Only recalculate `model` if `current` has a different syntax
+                // tree to `method`
+                if (!current.HasEqualSyntaxTreeTo(method)) {
+                    model = Analyzer.GetSemanticModel(
+                        trees,
+                        current.GetRoot().SyntaxTree
+                    );
+                }
+
                 foreach (var invocation in methodInvocations)
                 {
-                    SemanticModel model = Analyzer.GetSemanticModel(
-                        trees,
-                        invocation.SyntaxTree.GetRoot().SyntaxTree
-                    );
-
                     Method invoked = new Method(invocation, model);
 
                     // Excludes delegate and local functions
@@ -422,10 +447,20 @@ namespace CsPurity
                         continue;
                     }
 
+                    // Handles recursive calls. Don't continue analyzing
+                    // invoked method if it is equal to `method` or if it is in
+                    // `invocations` (which means that it was called recursively)
+                    if (invoked.Equals(method) || invocations.Contains(invoked))
+                    {
+                        continue;
+                    }
+
                     if (!results.Contains(invoked))
                     {
                         results.Add(invoked);
                     }
+
+                    invocations.Push(invoked);
                     stack.Push(invoked);
                 }
             }
@@ -557,7 +592,7 @@ namespace CsPurity
             return new LookupTable(result, this);
         }
 
-        DataRow GetMethodRow(Method method)
+        public DataRow GetMethodRow(Method method)
         {
             return table
                 .AsEnumerable()
@@ -773,6 +808,16 @@ namespace CsPurity
             return declaration != null;
         }
 
+        public SyntaxNode GetRoot()
+        {
+            return declaration?.SyntaxTree.GetRoot();
+        }
+
+        public bool HasEqualSyntaxTreeTo(Method method)
+        {
+            return GetRoot().Equals(method.GetRoot());
+        }
+
         public override bool Equals(Object obj)
         {
             if (!(obj is Method)) return false;
@@ -802,12 +847,14 @@ namespace CsPurity
 
         public override string ToString()
         {
-            if (HasKnownDeclaration()) {
-                SyntaxToken classIdentifier = declaration
-                    .Ancestors()
-                    .OfType<ClassDeclarationSyntax>()
-                    .First()
-                    .Identifier;
+            if (!HasKnownDeclaration())  return identifier;
+
+            var classAncestors = declaration
+                .Ancestors()
+                .OfType<ClassDeclarationSyntax>();
+
+            if (classAncestors.Any()) {
+                SyntaxToken classIdentifier = classAncestors.First().Identifier;
                 string className = classIdentifier.Text;
                 string returnType = declaration.ReturnType.ToString();
                 string methodName = declaration.Identifier.Text;
