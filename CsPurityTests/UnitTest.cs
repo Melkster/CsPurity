@@ -629,6 +629,27 @@ namespace CsPurityTests
             Assert.AreEqual(lt.table.Rows.Count, 1);
             Assert.IsTrue(lt.HasMethod(foo));
         }
+
+        [TestMethod]
+        public void TestRecursion()
+        {
+            var file = (@"
+                class A
+                {
+                    int Foo(int i) {
+                        if (i == 0) return 0;
+                        return 1 + Foo(i - 1);
+                    }
+                }
+            ");
+            LookupTable lt = Analyzer.Analyze(file);
+            var foo = lt.GetMethodByName("Foo");
+
+            Assert.AreEqual(lt.table.Rows.Count, 1);
+            Assert.IsTrue(lt.HasMethod(foo));
+            Assert.AreEqual(lt.GetPurity(foo), Purity.Pure);
+            Assert.IsTrue(!lt.GetDependencies(foo).Any());
+        }
     }
 
     [TestClass]

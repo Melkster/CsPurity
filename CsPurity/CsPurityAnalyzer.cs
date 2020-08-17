@@ -443,6 +443,13 @@ namespace CsPurity
                         continue;
                     }
 
+                    // Handles recursive calls. Don't continue analyzing
+                    // invoked method if it is equal to `method`
+                    if (invoked.Equals(method))
+                    {
+                        continue;
+                    }
+
                     if (!results.Contains(invoked))
                     {
                         results.Add(invoked);
