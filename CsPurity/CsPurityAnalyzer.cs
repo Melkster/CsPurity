@@ -253,7 +253,7 @@ namespace CsPurity
                 try
                 {
                     List<string> files = args.Skip(1).Select(
-                        a => System.IO.File.ReadAllText(a)
+                        a => File.ReadAllText(a)
                     ).ToList();
 
                     WriteLine(
@@ -262,7 +262,7 @@ namespace CsPurity
                             .ToStringNoDependencySet()
                     );
                 }
-                catch (System.IO.FileNotFoundException err)
+                catch (FileNotFoundException err)
                 {
                     WriteLine(err.Message);
                 }
@@ -280,7 +280,7 @@ namespace CsPurity
                         args[0],
                         "*.cs",
                         SearchOption.AllDirectories
-                    ).Select(a => System.IO.File.ReadAllText(a)).ToList();
+                    ).Select(a => File.ReadAllText(a)).ToList();
 
                     WriteLine(
                         Analyze(files)
@@ -288,7 +288,7 @@ namespace CsPurity
                             .ToStringNoDependencySet()
                     );
                 }
-                catch (System.IO.FileNotFoundException err)
+                catch (FileNotFoundException err)
                 {
                     WriteLine(err.Message);
                 }
@@ -357,12 +357,18 @@ namespace CsPurity
                 foreach (var methodDeclaration in methodDeclarations)
                 {
                     Method method = new Method(methodDeclaration);
-                    AddMethod(method);
-                    WriteLine($"Calculating dependencies for {method}.");
-                    var dependencies = CalculateDependencies(method);
-                    foreach (var dependency in dependencies)
+
+                    // Ignore interface methods which also show up as
+                    // MethodDeclarationSyntaxes
+                    if (!method.IsInterfaceMethod())
                     {
-                        AddDependency(method, dependency);
+                        AddMethod(method);
+                        WriteLine($"Calculating dependencies for {method}.");
+                        var dependencies = CalculateDependencies(method);
+                        foreach (var dependency in dependencies)
+                        {
+                            AddDependency(method, dependency);
+                        }
                     }
                 }
             }
@@ -490,19 +496,19 @@ namespace CsPurity
         {
             if (!HasMethod(methodNode))
             {
-                throw new System.Exception(
+                throw new Exception(
                     $"Method '{methodNode}' does not exist in lookup table"
                 );
             }
             else if (!HasMethod(dependsOnNode))
             {
-                throw new System.Exception(
+                throw new Exception(
                     $"Method '{dependsOnNode}' does not exist in lookup table"
                 );
             }
             else if (!HasDependency(methodNode, dependsOnNode))
             {
-                throw new System.Exception(
+                throw new Exception(
                     $"Method '{methodNode}' does not depend on '{dependsOnNode}'"
                 );
             }
@@ -540,7 +546,7 @@ namespace CsPurity
         {
             if (!HasMethod(methodNode))
             {
-                throw new System.Exception(
+                throw new Exception(
                     $"Method '{methodNode}' does not exist in lookup table"
                 );
             }
@@ -814,6 +820,21 @@ namespace CsPurity
         public bool HasEqualSyntaxTreeTo(Method method)
         {
             return GetRoot().Equals(method.GetRoot());
+        }
+
+        /// <summary>
+        /// Checks if method is an interface method, ie a method declared
+        /// inside an interface.
+        /// </summary>
+        /// <returns>
+        /// True if method is an interace method, otherwise false.
+        /// </returns>
+        public bool IsInterfaceMethod()
+        {
+            return declaration
+                .Parent
+                .Kind()
+                .Equals(SyntaxKind.InterfaceDeclaration);
         }
 
         public override bool Equals(Object obj)

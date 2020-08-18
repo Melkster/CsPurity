@@ -631,6 +631,37 @@ namespace CsPurityTests
         }
 
         [TestMethod]
+        public void TestAnalyzeInterface()
+        {
+            var file = (@"
+                public interface IParseTree
+                {
+                    new IParseTree Foo(int i);
+                }
+
+                public class A : IParseTree
+                {
+                    public IParseTree Foo(int i) {
+                        return null;
+                    }
+                }
+            ");
+            LookupTable lt = Analyzer.Analyze(file);
+            var foo = new Method(lt
+                .trees
+                .Single()
+                .GetRoot()
+                .DescendantNodes()
+                .OfType<MethodDeclarationSyntax>()
+                .Where(m => m.Identifier.Text == "Foo")
+                .Last()
+                );
+
+            Assert.AreEqual(lt.table.Rows.Count, 1);
+            Assert.IsTrue(lt.HasMethod(foo));
+        }
+
+        [TestMethod]
         public void TestRecursion()
         {
             var file = (@"
