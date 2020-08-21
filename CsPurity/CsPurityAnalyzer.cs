@@ -7,6 +7,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Collections.Generic;
 using System.Data;
 using System.Text.RegularExpressions;
+using System.Diagnostics;
 
 using static System.Console;
 
@@ -111,9 +112,26 @@ namespace CsPurity
                     {
                         SetPurityAndPropagate(method, Purity.Impure);
                     }
+                    var nulls1 = analyzer
+                        .lookupTable
+                        .table
+                        .AsEnumerable()
+                        .Where(row => ((Method)row["identifier"]) == null);
+                    Method foo1;
+                    if (nulls1.Any()) { foo1 = nulls1.First().Field<Method>("identifier"); }
+                    Debug.Assert(!nulls1.Any());
                 }
                 workingSet.Calculate();
             }
+            var nulls = analyzer
+                .lookupTable
+                .table
+                .AsEnumerable()
+                .Where(row => ((Method)row["identifier"]) == null);
+            Method foo;
+            if (nulls.Any()) { foo = nulls.First().Field<Method>("identifier"); }
+            Debug.Assert(!nulls.Any());
+
             return table;
 
             /// <summary>
@@ -121,7 +139,8 @@ namespace CsPurity
             ///
             /// Sets <paramref name="tableModified"/> to true.
             /// </summary>
-            void SetPurityAndPropagate(Method method, Purity purity) {
+            void SetPurityAndPropagate(Method method, Purity purity)
+            {
                 table.SetPurity(method, purity);
                 table.PropagatePurity(method);
                 tableModified = true;
@@ -210,18 +229,35 @@ namespace CsPurity
 
         static void AnalyzeAndPrint(string file)
         {
+            var result = Analyze(file)
+                .StripMethodsNotDeclaredInAnalyzedFiles();
             WriteLine(
-                Analyze(file)
-                    .StripMethodsNotDeclaredInAnalyzedFiles()
+                result
+                    .ToStringNoDependencySet()
+            );
+        }
+
+        static void AnalyzeAndPrint(List<string> files)
+        {
+            var result = Analyze(files)
+                .StripMethodsNotDeclaredInAnalyzedFiles();
+            var foo = result
+                .table
+                .AsEnumerable()
+                .Where(row => ((Method)row["identifier"]) == null);
+
+            WriteLine(
+                result
                     .ToStringNoDependencySet()
             );
         }
 
         static void Main(string[] args)
         {
-            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var watch = Stopwatch.StartNew();
 
-            if (!args.Any())
+            //if (!args.Any())
+            if (false)
             {
                 WriteLine("Please provide path(s) to the directory C# file(s) to be analyzed.");
             }
@@ -277,26 +313,23 @@ namespace CsPurity
                 try
                 {
                     List<string> files = Directory.GetFiles(
-                        args[0],
+                        //args[0],
+                        "D:/Melker/other-code/nodatime/src/NodaTime",
                         "*.cs",
                         SearchOption.AllDirectories
                     ).Select(a => File.ReadAllText(a)).ToList();
 
-                    WriteLine(
-                        Analyze(files)
-                            .StripMethodsNotDeclaredInAnalyzedFiles()
-                            .ToStringNoDependencySet()
-                    );
+                    AnalyzeAndPrint(files);
                 }
                 catch (FileNotFoundException err)
                 {
                     WriteLine(err.Message);
                 }
-                catch (Exception err)
-                {
-                    WriteLine($"Something went wrong when reading the file(s)" +
-                        $":\n\n{err.Message}");
-                }
+                //catch (Exception err)
+                //{
+                //    WriteLine($"Something went wrong when reading the file(s)" +
+                //        $":\n\n{err.Message}");
+                //}
             }
 
             watch.Stop();
@@ -319,8 +352,7 @@ namespace CsPurity
             table.Columns.Add("purity", typeof(Purity));
         }
 
-        public LookupTable(List<SyntaxTree> trees)
-            : this()
+        public LookupTable(List<SyntaxTree> trees) : this()
         {
             this.trees = trees;
 
@@ -356,6 +388,7 @@ namespace CsPurity
                     .OfType<MethodDeclarationSyntax>();
                 foreach (var methodDeclaration in methodDeclarations)
                 {
+                    Debug.Assert(methodDeclaration != null);
                     Method method = new Method(methodDeclaration);
 
                     // Ignore interface methods which also show up as
@@ -370,6 +403,13 @@ namespace CsPurity
                             AddDependency(method, dependency);
                         }
                     }
+
+                    var nulls = table
+                        .AsEnumerable()
+                        .Where(row => ((Method)row["identifier"]) == null);
+                    Method foo;
+                    if (nulls.Any()) { foo = nulls.First().Field<Method>("identifier"); }
+                    Debug.Assert(!nulls.Any());
                 }
             }
             WriteLine("Lookup table constructed.");
@@ -434,15 +474,17 @@ namespace CsPurity
 
                 // Only recalculate `model` if `current` has a different syntax
                 // tree to `method`
-                if (!current.HasEqualSyntaxTreeTo(method)) {
+
+                //if (!current.HasEqualSyntaxTreeTo(method)) {
                     model = Analyzer.GetSemanticModel(
                         trees,
                         current.GetRoot().SyntaxTree
                     );
-                }
+                //}
 
                 foreach (var invocation in methodInvocations)
                 {
+                    Debug.Assert(invocation != null);
                     Method invoked = new Method(invocation, model);
 
                     // Excludes delegate and local functions
@@ -715,23 +757,28 @@ namespace CsPurity
             foreach (var row in table.AsEnumerable())
             {
                 string identifier = row.Field<Method>("identifier").ToString();
-                var purity = row.Field<Purity>("purity");
-                result += FormatTwoColumn(identifier, Enum.GetName(typeof(Purity), purity));
+                string purity = row.Field<Purity>("purity").ToString();
+                if (identifier != null) {
+                    result += FormatTwoColumn(identifier, purity);
+                }
+                else
+                {
+                    result += $"{identifier} {purity} <--------\n";
+                }
             }
             return result;
 
-            string FormatTwoColumn(string item1, string item2)
+            string FormatTwoColumn(string identifier, string purity)
             {
                 int spaceWidth;
-                if (printoutWidth - item1.Length <= 0) spaceWidth = 0;
-                else spaceWidth = printoutWidth - item1.Length;
+                if (printoutWidth - identifier.Length <= 0) spaceWidth = 0;
+                else spaceWidth = printoutWidth - identifier.Length;
 
                 string spaces = new String(' ', spaceWidth);
-                return $"{item1} {spaces}{item2}\n";
+                return $"{identifier} {spaces}{purity}\n";
             }
         }
     }
-
 
     public class Method
     {
@@ -756,11 +803,13 @@ namespace CsPurity
         /// <param name="model"></param>
         public Method(InvocationExpressionSyntax methodInvocation, SemanticModel model)
         {
+            Debug.Assert(methodInvocation != null);
 
             ISymbol symbol = model.GetSymbolInfo(methodInvocation).Symbol;
             if (symbol == null)
             {
                 SetIdentifier(methodInvocation);
+                Debug.Assert(!(this.identifier == null && this.declaration == null));
                 return;
             };
 
@@ -768,6 +817,7 @@ namespace CsPurity
             if (declaringReferences.Length < 1)
             {
                 SetIdentifier(methodInvocation);
+                Debug.Assert(!(this.identifier == null && this.declaration == null));
                 return;
             };
 
@@ -775,12 +825,14 @@ namespace CsPurity
             if ((symbol as IMethodSymbol).MethodKind == MethodKind.LocalFunction)
             {
                 isLocalFunction = true;
+                identifier = "*local function*";
                 return;
             }
 
             if ((symbol as IMethodSymbol).MethodKind == MethodKind.DelegateInvoke)
             {
                 isDelegateFunction = true;
+                identifier = "*delegate function*";
                 return;
             }
 
@@ -788,23 +840,28 @@ namespace CsPurity
             declaration = (MethodDeclarationSyntax)declaringReferences
                 .Single()
                 .GetSyntax();
+            Debug.Assert(declaration != null);
         }
 
         public Method(MethodDeclarationSyntax declaration)
             : this(declaration.Identifier.Text)
         {
             this.declaration = declaration;
+            Debug.Assert(declaration != null);
         }
 
         public Method(string identifier)
         {
             this.identifier = identifier;
+            Debug.Assert(identifier != null);
         }
 
         void SetIdentifier(InvocationExpressionSyntax methodInvocation)
         {
             identifier = methodInvocation.Expression.ToString();
             identifier = Regex.Replace(identifier, @"[\s,\n]+", "");
+            Debug.Assert(methodInvocation != null);
+            Debug.Assert(identifier != null);
         }
 
         public bool HasKnownDeclaration()
@@ -879,7 +936,11 @@ namespace CsPurity
                 string methodName = declaration.Identifier.Text;
                 return $"{returnType} {className}.{methodName}";
             }
-            else return identifier;
+            else
+            {
+                Debug.Assert(identifier != null);
+                return identifier;
+            };
         }
     }
 
