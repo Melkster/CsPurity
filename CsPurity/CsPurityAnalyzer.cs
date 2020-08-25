@@ -112,6 +112,15 @@ namespace CsPurity
                     {
                         SetPurityAndPropagate(method, Purity.Impure);
                     }
+                    else if (method.IsInterfaceMethod())
+                    // If `method` is an interface method its purity is set to
+                    // `Unknown` since we cannot know its implementation. This
+                    // could be handled in the future by looking at all
+                    // implementations of `method` and setting its purity level
+                    // to the level of the impurest implementation.
+                    {
+                        SetPurityAndPropagate(method, Purity.Unknown);
+                    }
                     var nulls1 = analyzer
                         .lookupTable
                         .table
@@ -239,15 +248,10 @@ namespace CsPurity
 
         static void AnalyzeAndPrint(List<string> files)
         {
-            var result = Analyze(files)
-                .StripMethodsNotDeclaredInAnalyzedFiles();
-            var foo = result
-                .table
-                .AsEnumerable()
-                .Where(row => ((Method)row["identifier"]) == null);
-
             WriteLine(
-                result
+                Analyze(files)
+                    .StripMethodsNotDeclaredInAnalyzedFiles()
+                    .StripInterfaceMethods()
                     .ToStringNoDependencySet()
             );
         }
@@ -312,12 +316,19 @@ namespace CsPurity
             {
                 try
                 {
+
                     List<string> files = Directory.GetFiles(
                         //args[0],
                         "D:/Melker/other-code/nodatime/src/NodaTime",
                         "*.cs",
                         SearchOption.AllDirectories
                     ).Select(a => File.ReadAllText(a)).ToList();
+
+                    //List<string> files = new List<string> {
+                    //    "D:/Melker/other-code/nodatime/src/NodaTime/Text/IPattern.cs",
+                    //    "D:/Melker/other-code/nodatime/src/NodaTime/Text/InstantPattern.cs"
+                    //}.Select(a => File.ReadAllText(a)).ToList();
+
 
                     AnalyzeAndPrint(files);
                 }
@@ -403,7 +414,6 @@ namespace CsPurity
                             AddDependency(method, dependency);
                         }
                     }
-
                     var nulls = table
                         .AsEnumerable()
                         .Where(row => ((Method)row["identifier"]) == null);
@@ -423,7 +433,9 @@ namespace CsPurity
         /// <summary>
         /// Computes a list of all unique methods that a method depends on. If
         /// any method doesn't have a known declaration, its purity level is
-        /// set to `Unknown`.
+        /// set to `Unknown`. If an interface method invocation was found, the
+        /// invoker's purity is set to `Unknown` since the invoked method could
+        /// have any implementation.
         /// </summary>
         /// <param name="method">The method</param>
         /// <returns>
@@ -474,7 +486,6 @@ namespace CsPurity
 
                 // Only recalculate `model` if `current` has a different syntax
                 // tree to `method`
-
                 //if (!current.HasEqualSyntaxTreeTo(method)) {
                     model = Analyzer.GetSemanticModel(
                         trees,
@@ -693,7 +704,6 @@ namespace CsPurity
         /// </returns>
         public LookupTable StripMethodsNotDeclaredInAnalyzedFiles()
         {
-            // TODO: write tests for this method
             LookupTable result = Copy();
             List<Method> methods = new List<Method>();
             foreach (var tree in trees)
@@ -711,6 +721,29 @@ namespace CsPurity
             {
                 var method = row.Field<Method>("identifier");
                 if (!methods.Contains(method)) result.RemoveMethod(method);
+            }
+            return result;
+        }
+
+
+
+        /// <summary>
+        /// Removes all interface methods from the lookup table, i.e. methods
+        /// declared in interfaces which therefore lack implementation.
+        /// </summary>
+        /// <returns>A lookup table stripped of all interface methods.</returns>
+        public LookupTable StripInterfaceMethods()
+        {
+            LookupTable result = Copy();
+            List<Method> interfaceMethods = result
+                .table
+                .AsEnumerable()
+                .Where(row => row.Field<Method>("identifier").IsInterfaceMethod())
+                .Select(row => row.Field<Method>("identifier"))
+                .ToList();
+            foreach (Method method in interfaceMethods)
+            {
+                result.RemoveMethod(method);
             }
             return result;
         }
@@ -888,7 +921,8 @@ namespace CsPurity
         /// </returns>
         public bool IsInterfaceMethod()
         {
-            return declaration
+            if (declaration == null) return false;
+            else return declaration
                 .Parent
                 .Kind()
                 .Equals(SyntaxKind.InterfaceDeclaration);
@@ -936,11 +970,22 @@ namespace CsPurity
                 string methodName = declaration.Identifier.Text;
                 return $"{returnType} {className}.{methodName}";
             }
-            else
+
+            // If no ancestor is a class declaration, look for struct
+            // declarations
+            var structAncestors = declaration
+                .Ancestors()
+                .OfType<StructDeclarationSyntax>();
+
+            if (structAncestors.Any())
             {
-                Debug.Assert(identifier != null);
-                return identifier;
-            };
+                SyntaxToken structIdentifier = structAncestors.First().Identifier;
+                string structName = structIdentifier.Text;
+                string returnType = declaration.ReturnType.ToString();
+                string methodName = declaration.Identifier.Text;
+                return $"(struct) {returnType} {structName}.{methodName}";
+            }
+            return "*no identifier found*";
         }
     }
 
