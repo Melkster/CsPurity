@@ -1630,6 +1630,94 @@ namespace CsPurityTests
             expected = new List<Method> { fooDeclaration };
             Assert.IsTrue(HelpMethods.HaveEqualElements(result, expected));
         }
+
+        [TestMethod]
+        public void TestCountMethods()
+        {
+            var file1 = (@"
+                class C1
+                {
+                    int foo()
+                    {
+                        return bar() + C2.baz();
+                    }
+
+                    int bar()
+                    {
+                        return 42 + C2.baz();
+                    }
+                }
+
+                class C2
+                {
+                    public static int baz()
+                    {
+                        return 42;
+                    }
+
+                    int foz() {
+                        return 1;
+                    }
+                }
+            ");
+
+            var file2 = "";
+
+            LookupTable lt1 = Analyzer.Analyze(file1);
+            LookupTable lt2 = Analyzer.Analyze(file2);
+
+            Assert.AreEqual(lt1.CountMethods(), 4);
+            Assert.AreEqual(lt2.CountMethods(), 0);
+        }
+
+        [TestMethod]
+        public void TestCountMethodsWithPurity()
+        {
+            var file = (@"
+                class C1
+                {
+                    int foo()
+                    {
+                        C2 c2 = new C2();
+                        return c2.foz();
+                    }
+
+                    int bar()
+                    {
+                        C2.baz();
+                        return 42;
+                    }
+                }
+
+                class C2
+                {
+                    public static int value = 42;
+
+                    public static void baz()
+                    {
+                        value = 3;
+                        value++;
+                    }
+
+                    public int foz() {
+                        return 1;
+                    }
+                }
+
+                class C2
+                {
+                    public static void faz()
+                    {
+                        UnknownFunction(""faz"");
+                    }
+                }
+            ");
+            LookupTable lt = Analyzer.Analyze(file);
+
+            Assert.AreEqual(lt.CountMethodsWithPurity(Purity.Pure), 2);
+            Assert.AreEqual(lt.CountMethodsWithPurity(Purity.Impure), 2);
+            Assert.AreEqual(lt.CountMethodsWithPurity(Purity.Unknown), 2);
+        }
     }
 
     public static class HelpMethods
