@@ -218,17 +218,17 @@ namespace CsPurity
             return false;
         }
 
-        static void AnalyzeAndPrint(List<string> files)
+        public static void AnalyzeAndPrint(List<string> files)
         {
-            WriteLine(
-                Analyze(files)
-                    .StripMethodsNotDeclaredInAnalyzedFiles()
-                    .StripInterfaceMethods()
-                    .ToStringNoDependencySet()
-            );
+            LookupTable lt = Analyze(files)
+                .StripMethodsNotDeclaredInAnalyzedFiles()
+                .StripInterfaceMethods();
+            WriteLine(lt.ToStringNoDependencySet());
+            WriteLine("Method purity ratios:");
+            lt.PrintPurityRatios();
         }
 
-        static void AnalyzeAndPrint(string file)
+        public static void AnalyzeAndPrint(string file)
         {
             AnalyzeAndPrint(new List<string> { file });
         }
@@ -713,6 +713,15 @@ namespace CsPurity
                 .AsEnumerable()
                 .Where(row => (Purity)row["purity"] == (purity))
                 .Count();
+        }
+
+        public void PrintPurityRatios()
+        {
+            int methodsCount = CountMethods();
+            double impures = CountMethodsWithPurity(Purity.Impure);
+            double pures = CountMethodsWithPurity(Purity.Pure);
+            double unknowns = CountMethodsWithPurity(Purity.Unknown);
+            WriteLine($"Impure: {impures}/{methodsCount}, Pure: {pures}/{methodsCount}, Unknown: {unknowns}/{methodsCount}");
         }
 
         public override string ToString()
