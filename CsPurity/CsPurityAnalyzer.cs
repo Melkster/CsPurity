@@ -121,26 +121,9 @@ namespace CsPurity
                     {
                         SetPurityAndPropagate(method, Purity.Unknown);
                     }
-                    var nulls1 = analyzer
-                        .lookupTable
-                        .table
-                        .AsEnumerable()
-                        .Where(row => ((Method)row["identifier"]) == null);
-                    Method foo1;
-                    if (nulls1.Any()) { foo1 = nulls1.First().Field<Method>("identifier"); }
-                    Debug.Assert(!nulls1.Any());
                 }
                 workingSet.Calculate();
             }
-            var nulls = analyzer
-                .lookupTable
-                .table
-                .AsEnumerable()
-                .Where(row => ((Method)row["identifier"]) == null);
-            Method foo;
-            if (nulls.Any()) { foo = nulls.First().Field<Method>("identifier"); }
-            Debug.Assert(!nulls.Any());
-
             return table;
 
             /// <summary>
@@ -171,7 +154,7 @@ namespace CsPurity
         /// <returns></returns>
         public static SemanticModel GetSemanticModel(List<SyntaxTree> trees, SyntaxTree tree)
         {
-            var result = CSharpCompilation
+            return CSharpCompilation
                 .Create("AnalysisModel")
                 .AddReferences(
                     MetadataReference.CreateFromFile(
@@ -180,7 +163,6 @@ namespace CsPurity
                 )
                 .AddSyntaxTrees(trees)
                 .GetSemanticModel(tree);
-            return result;
         }
 
         public static SemanticModel GetSemanticModel(SyntaxTree tree)
@@ -236,16 +218,6 @@ namespace CsPurity
             return false;
         }
 
-        static void AnalyzeAndPrint(string file)
-        {
-            var result = Analyze(file)
-                .StripMethodsNotDeclaredInAnalyzedFiles();
-            WriteLine(
-                result
-                    .ToStringNoDependencySet()
-            );
-        }
-
         static void AnalyzeAndPrint(List<string> files)
         {
             WriteLine(
@@ -256,12 +228,16 @@ namespace CsPurity
             );
         }
 
+        static void AnalyzeAndPrint(string file)
+        {
+            AnalyzeAndPrint(new List<string> { file });
+        }
+
         static void Main(string[] args)
         {
             var watch = Stopwatch.StartNew();
 
-            //if (!args.Any())
-            if (false)
+            if (!args.Any())
             {
                 WriteLine("Please provide path(s) to the directory C# file(s) to be analyzed.");
             }
@@ -316,19 +292,11 @@ namespace CsPurity
             {
                 try
                 {
-
                     List<string> files = Directory.GetFiles(
-                        //args[0],
-                        "D:/Melker/other-code/nodatime/src/NodaTime",
+                        args[0],
                         "*.cs",
                         SearchOption.AllDirectories
                     ).Select(a => File.ReadAllText(a)).ToList();
-
-                    //List<string> files = new List<string> {
-                    //    "D:/Melker/other-code/nodatime/src/NodaTime/Text/IPattern.cs",
-                    //    "D:/Melker/other-code/nodatime/src/NodaTime/Text/InstantPattern.cs"
-                    //}.Select(a => File.ReadAllText(a)).ToList();
-
 
                     AnalyzeAndPrint(files);
                 }
@@ -336,11 +304,11 @@ namespace CsPurity
                 {
                     WriteLine(err.Message);
                 }
-                //catch (Exception err)
-                //{
-                //    WriteLine($"Something went wrong when reading the file(s)" +
-                //        $":\n\n{err.Message}");
-                //}
+                catch (Exception err)
+                {
+                    WriteLine($"Something went wrong when reading the file(s)" +
+                        $":\n\n{err.Message}");
+                }
             }
 
             watch.Stop();
@@ -399,7 +367,6 @@ namespace CsPurity
                     .OfType<MethodDeclarationSyntax>();
                 foreach (var methodDeclaration in methodDeclarations)
                 {
-                    Debug.Assert(methodDeclaration != null);
                     Method method = new Method(methodDeclaration);
 
                     // Ignore interface methods which also show up as
@@ -414,12 +381,6 @@ namespace CsPurity
                             AddDependency(method, dependency);
                         }
                     }
-                    var nulls = table
-                        .AsEnumerable()
-                        .Where(row => ((Method)row["identifier"]) == null);
-                    Method foo;
-                    if (nulls.Any()) { foo = nulls.First().Field<Method>("identifier"); }
-                    Debug.Assert(!nulls.Any());
                 }
             }
             WriteLine("Lookup table constructed.");
@@ -483,19 +444,13 @@ namespace CsPurity
                     .OfType<InvocationExpressionSyntax>();
                 if (!methodInvocations.Any()) continue;
 
-
-                // Only recalculate `model` if `current` has a different syntax
-                // tree to `method`
-                //if (!current.HasEqualSyntaxTreeTo(method)) {
-                    model = Analyzer.GetSemanticModel(
-                        trees,
-                        current.GetRoot().SyntaxTree
-                    );
-                //}
+                model = Analyzer.GetSemanticModel(
+                    trees,
+                    current.GetRoot().SyntaxTree
+                );
 
                 foreach (var invocation in methodInvocations)
                 {
-                    Debug.Assert(invocation != null);
                     Method invoked = new Method(invocation, model);
 
                     // Excludes delegate and local functions
@@ -791,13 +746,7 @@ namespace CsPurity
             {
                 string identifier = row.Field<Method>("identifier").ToString();
                 string purity = row.Field<Purity>("purity").ToString();
-                if (identifier != null) {
-                    result += FormatTwoColumn(identifier, purity);
-                }
-                else
-                {
-                    result += $"{identifier} {purity} <--------\n";
-                }
+                result += FormatTwoColumn(identifier, purity);
             }
             return result;
 
@@ -836,13 +785,10 @@ namespace CsPurity
         /// <param name="model"></param>
         public Method(InvocationExpressionSyntax methodInvocation, SemanticModel model)
         {
-            Debug.Assert(methodInvocation != null);
-
             ISymbol symbol = model.GetSymbolInfo(methodInvocation).Symbol;
             if (symbol == null)
             {
                 SetIdentifier(methodInvocation);
-                Debug.Assert(!(this.identifier == null && this.declaration == null));
                 return;
             };
 
@@ -850,7 +796,6 @@ namespace CsPurity
             if (declaringReferences.Length < 1)
             {
                 SetIdentifier(methodInvocation);
-                Debug.Assert(!(this.identifier == null && this.declaration == null));
                 return;
             };
 
@@ -873,28 +818,23 @@ namespace CsPurity
             declaration = (MethodDeclarationSyntax)declaringReferences
                 .Single()
                 .GetSyntax();
-            Debug.Assert(declaration != null);
         }
 
         public Method(MethodDeclarationSyntax declaration)
             : this(declaration.Identifier.Text)
         {
             this.declaration = declaration;
-            Debug.Assert(declaration != null);
         }
 
         public Method(string identifier)
         {
             this.identifier = identifier;
-            Debug.Assert(identifier != null);
         }
 
         void SetIdentifier(InvocationExpressionSyntax methodInvocation)
         {
             identifier = methodInvocation.Expression.ToString();
             identifier = Regex.Replace(identifier, @"[\s,\n]+", "");
-            Debug.Assert(methodInvocation != null);
-            Debug.Assert(identifier != null);
         }
 
         public bool HasKnownDeclaration()
