@@ -681,7 +681,6 @@ namespace CsPurity
         }
 
 
-
         /// <summary>
         /// Removes all interface methods from the lookup table, i.e. methods
         /// declared in interfaces which therefore lack implementation.
@@ -701,6 +700,19 @@ namespace CsPurity
                 result.RemoveMethod(method);
             }
             return result;
+        }
+
+        public int CountMethods()
+        {
+            return table.Rows.Count;
+        }
+
+        public int CountMethodsWithPurity(Purity purity)
+        {
+            return table
+                .AsEnumerable()
+                .Where(row => (Purity)row["purity"] == (purity))
+                .Count();
         }
 
         public override string ToString()
