@@ -1246,7 +1246,7 @@ namespace CsPurityTests
         }
 
         [TestMethod]
-        public void TestStripMethods()
+        public void TestStripMethodsNotDeclaredInAnalyzedFiles()
         {
             var file = (@"
                 class C1
@@ -1280,6 +1280,40 @@ namespace CsPurityTests
             Assert.IsTrue(lookupTable.HasMethod(foo));
             Assert.IsTrue(lookupTable.HasMethod(bar));
             Assert.IsFalse(lookupTable.HasMethod(cwl));
+        }
+
+        [TestMethod]
+        public void TestStripInterfaceMethods()
+        {
+            var file = (@"
+                class C1 : I1
+                {
+                    public int Foo()
+                    {
+                        return 42;
+                    }
+                }
+
+                public interface I1
+                {
+                    int Foo();
+                }
+            ");
+            LookupTable lt = Analyzer.Analyze(file);
+
+            var foo = new Method(lt
+                .trees
+                .Single()
+                .GetRoot()
+                .DescendantNodes()
+                .OfType<MethodDeclarationSyntax>()
+                .Where(m => m.Identifier.Text == "Foo")
+                .First()
+            );
+
+            lt = lt.StripInterfaceMethods();
+            Assert.AreEqual(lt.table.Rows.Count, 1);
+            Assert.IsTrue(lt.HasMethod(foo));
         }
 
         [TestMethod]

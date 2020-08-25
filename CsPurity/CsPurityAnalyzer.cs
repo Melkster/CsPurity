@@ -7,6 +7,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Collections.Generic;
 using System.Data;
 using System.Text.RegularExpressions;
+using System.Diagnostics;
 
 using static System.Console;
 
@@ -111,6 +112,15 @@ namespace CsPurity
                     {
                         SetPurityAndPropagate(method, Purity.Impure);
                     }
+                    else if (method.IsInterfaceMethod())
+                    // If `method` is an interface method its purity is set to
+                    // `Unknown` since we cannot know its implementation. This
+                    // could be handled in the future by looking at all
+                    // implementations of `method` and setting its purity level
+                    // to the level of the impurest implementation.
+                    {
+                        SetPurityAndPropagate(method, Purity.Unknown);
+                    }
                 }
                 workingSet.Calculate();
             }
@@ -121,7 +131,8 @@ namespace CsPurity
             ///
             /// Sets <paramref name="tableModified"/> to true.
             /// </summary>
-            void SetPurityAndPropagate(Method method, Purity purity) {
+            void SetPurityAndPropagate(Method method, Purity purity)
+            {
                 table.SetPurity(method, purity);
                 table.PropagatePurity(method);
                 tableModified = true;
@@ -143,7 +154,7 @@ namespace CsPurity
         /// <returns></returns>
         public static SemanticModel GetSemanticModel(List<SyntaxTree> trees, SyntaxTree tree)
         {
-            var result = CSharpCompilation
+            return CSharpCompilation
                 .Create("AnalysisModel")
                 .AddReferences(
                     MetadataReference.CreateFromFile(
@@ -152,7 +163,6 @@ namespace CsPurity
                 )
                 .AddSyntaxTrees(trees)
                 .GetSemanticModel(tree);
-            return result;
         }
 
         public static SemanticModel GetSemanticModel(SyntaxTree tree)
@@ -208,18 +218,24 @@ namespace CsPurity
             return false;
         }
 
-        static void AnalyzeAndPrint(string file)
+        static void AnalyzeAndPrint(List<string> files)
         {
             WriteLine(
-                Analyze(file)
+                Analyze(files)
                     .StripMethodsNotDeclaredInAnalyzedFiles()
+                    .StripInterfaceMethods()
                     .ToStringNoDependencySet()
             );
         }
 
+        static void AnalyzeAndPrint(string file)
+        {
+            AnalyzeAndPrint(new List<string> { file });
+        }
+
         static void Main(string[] args)
         {
-            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var watch = Stopwatch.StartNew();
 
             if (!args.Any())
             {
@@ -282,11 +298,7 @@ namespace CsPurity
                         SearchOption.AllDirectories
                     ).Select(a => File.ReadAllText(a)).ToList();
 
-                    WriteLine(
-                        Analyze(files)
-                            .StripMethodsNotDeclaredInAnalyzedFiles()
-                            .ToStringNoDependencySet()
-                    );
+                    AnalyzeAndPrint(files);
                 }
                 catch (FileNotFoundException err)
                 {
@@ -319,8 +331,7 @@ namespace CsPurity
             table.Columns.Add("purity", typeof(Purity));
         }
 
-        public LookupTable(List<SyntaxTree> trees)
-            : this()
+        public LookupTable(List<SyntaxTree> trees) : this()
         {
             this.trees = trees;
 
@@ -383,7 +394,9 @@ namespace CsPurity
         /// <summary>
         /// Computes a list of all unique methods that a method depends on. If
         /// any method doesn't have a known declaration, its purity level is
-        /// set to `Unknown`.
+        /// set to `Unknown`. If an interface method invocation was found, the
+        /// invoker's purity is set to `Unknown` since the invoked method could
+        /// have any implementation.
         /// </summary>
         /// <param name="method">The method</param>
         /// <returns>
@@ -431,15 +444,10 @@ namespace CsPurity
                     .OfType<InvocationExpressionSyntax>();
                 if (!methodInvocations.Any()) continue;
 
-
-                // Only recalculate `model` if `current` has a different syntax
-                // tree to `method`
-                if (!current.HasEqualSyntaxTreeTo(method)) {
-                    model = Analyzer.GetSemanticModel(
-                        trees,
-                        current.GetRoot().SyntaxTree
-                    );
-                }
+                model = Analyzer.GetSemanticModel(
+                    trees,
+                    current.GetRoot().SyntaxTree
+                );
 
                 foreach (var invocation in methodInvocations)
                 {
@@ -651,7 +659,6 @@ namespace CsPurity
         /// </returns>
         public LookupTable StripMethodsNotDeclaredInAnalyzedFiles()
         {
-            // TODO: write tests for this method
             LookupTable result = Copy();
             List<Method> methods = new List<Method>();
             foreach (var tree in trees)
@@ -669,6 +676,29 @@ namespace CsPurity
             {
                 var method = row.Field<Method>("identifier");
                 if (!methods.Contains(method)) result.RemoveMethod(method);
+            }
+            return result;
+        }
+
+
+
+        /// <summary>
+        /// Removes all interface methods from the lookup table, i.e. methods
+        /// declared in interfaces which therefore lack implementation.
+        /// </summary>
+        /// <returns>A lookup table stripped of all interface methods.</returns>
+        public LookupTable StripInterfaceMethods()
+        {
+            LookupTable result = Copy();
+            List<Method> interfaceMethods = result
+                .table
+                .AsEnumerable()
+                .Where(row => row.Field<Method>("identifier").IsInterfaceMethod())
+                .Select(row => row.Field<Method>("identifier"))
+                .ToList();
+            foreach (Method method in interfaceMethods)
+            {
+                result.RemoveMethod(method);
             }
             return result;
         }
@@ -715,23 +745,22 @@ namespace CsPurity
             foreach (var row in table.AsEnumerable())
             {
                 string identifier = row.Field<Method>("identifier").ToString();
-                var purity = row.Field<Purity>("purity");
-                result += FormatTwoColumn(identifier, Enum.GetName(typeof(Purity), purity));
+                string purity = row.Field<Purity>("purity").ToString();
+                result += FormatTwoColumn(identifier, purity);
             }
             return result;
 
-            string FormatTwoColumn(string item1, string item2)
+            string FormatTwoColumn(string identifier, string purity)
             {
                 int spaceWidth;
-                if (printoutWidth - item1.Length <= 0) spaceWidth = 0;
-                else spaceWidth = printoutWidth - item1.Length;
+                if (printoutWidth - identifier.Length <= 0) spaceWidth = 0;
+                else spaceWidth = printoutWidth - identifier.Length;
 
                 string spaces = new String(' ', spaceWidth);
-                return $"{item1} {spaces}{item2}\n";
+                return $"{identifier} {spaces}{purity}\n";
             }
         }
     }
-
 
     public class Method
     {
@@ -756,7 +785,6 @@ namespace CsPurity
         /// <param name="model"></param>
         public Method(InvocationExpressionSyntax methodInvocation, SemanticModel model)
         {
-
             ISymbol symbol = model.GetSymbolInfo(methodInvocation).Symbol;
             if (symbol == null)
             {
@@ -775,12 +803,14 @@ namespace CsPurity
             if ((symbol as IMethodSymbol).MethodKind == MethodKind.LocalFunction)
             {
                 isLocalFunction = true;
+                identifier = "*local function*";
                 return;
             }
 
             if ((symbol as IMethodSymbol).MethodKind == MethodKind.DelegateInvoke)
             {
                 isDelegateFunction = true;
+                identifier = "*delegate function*";
                 return;
             }
 
@@ -831,7 +861,8 @@ namespace CsPurity
         /// </returns>
         public bool IsInterfaceMethod()
         {
-            return declaration
+            if (declaration == null) return false;
+            else return declaration
                 .Parent
                 .Kind()
                 .Equals(SyntaxKind.InterfaceDeclaration);
@@ -879,7 +910,22 @@ namespace CsPurity
                 string methodName = declaration.Identifier.Text;
                 return $"{returnType} {className}.{methodName}";
             }
-            else return identifier;
+
+            // If no ancestor is a class declaration, look for struct
+            // declarations
+            var structAncestors = declaration
+                .Ancestors()
+                .OfType<StructDeclarationSyntax>();
+
+            if (structAncestors.Any())
+            {
+                SyntaxToken structIdentifier = structAncestors.First().Identifier;
+                string structName = structIdentifier.Text;
+                string returnType = declaration.ReturnType.ToString();
+                string methodName = declaration.Identifier.Text;
+                return $"(struct) {returnType} {structName}.{methodName}";
+            }
+            return "*no identifier found*";
         }
     }
 
