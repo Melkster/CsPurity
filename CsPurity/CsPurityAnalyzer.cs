@@ -272,11 +272,7 @@ namespace CsPurity
                         a => File.ReadAllText(a)
                     ).ToList();
 
-                    WriteLine(
-                        Analyze(files)
-                            .StripMethodsNotDeclaredInAnalyzedFiles()
-                            .ToStringNoDependencySet()
-                    );
+                    AnalyzeAndPrint(files);
                 }
                 catch (FileNotFoundException err)
                 {
