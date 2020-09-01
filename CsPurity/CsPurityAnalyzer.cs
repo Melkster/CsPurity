@@ -81,9 +81,9 @@ namespace CsPurity
         /// <summary>
         /// Analyzes the purity of the given text.
         /// </summary>
-        /// <param name="text"></param>
+        /// <param name="file">The content of the file to analyze</param>
         /// <returns>A LookupTable containing each method in <paramref
-        /// name="text"/>, its dependency set as well as its purity level
+        /// name="file"/>, its dependency set as well as its purity level
         /// </returns>
         public static LookupTable Analyze(List<string> files)
         {

@@ -325,7 +325,7 @@ namespace CsPurityTests
             var printListLengthDeclaration = resultTable.GetMethodByName("PrintListLength");
             var printLengthDeclaration = resultTable.GetMethodByName("PrintLength");
 
-            //TODO: Implement checks for for uncommented purities
+            //TODO: Implement checks for for commented purities
             Assert.AreEqual(resultTable.GetPurity(lengthDeclaration), Purity.Pure);
 
             Assert.AreEqual(resultTable.GetPurity(addDeclaration), Purity.Pure);
