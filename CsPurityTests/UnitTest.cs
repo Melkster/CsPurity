@@ -164,7 +164,7 @@ namespace CsPurityTests
                 class C1
                 {
                     string foo() {
-                    C2 c2 = new C2();
+                        C2 c2 = new C2();
                         return c2.Name;
                     }
                 }
@@ -183,6 +183,30 @@ namespace CsPurityTests
             var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", analyzer.lookupTable.trees.Single().GetRoot());
 
             Assert.IsTrue(analyzer.ReadsStaticFieldOrProperty(fooDeclaration));
+        }
+
+        [TestMethod]
+        public void TestThrowException()
+        {
+            var file = (@"
+                class C1
+                {
+                    void foo() {
+                        throw new Exception(
+                            $""Foo exception""
+                        );
+                    }
+
+                    int bar() {
+                        return 42;
+                    }
+                }
+            ");
+            Analyzer analyzer = new Analyzer(file);
+            var fooDeclaration = HelpMethods.GetMethodByName(analyzer.lookupTable, "foo");
+            var barDeclaration = HelpMethods.GetMethodByName(analyzer.lookupTable, "bar");
+            Assert.IsTrue(analyzer.ThrowsException(fooDeclaration));
+            Assert.IsFalse(analyzer.ThrowsException(barDeclaration));
         }
 
         [TestMethod]

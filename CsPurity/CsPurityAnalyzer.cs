@@ -112,6 +112,10 @@ namespace CsPurity
                     {
                         SetPurityAndPropagate(method, Purity.Impure);
                     }
+                    else if (analyzer.ThrowsException(method))
+                    {
+                        SetPurityAndPropagate(method, Purity.Impure);
+                    }
                     else if (method.IsInterfaceMethod())
                     // If `method` is an interface method its purity is set to
                     // `Unknown` since we cannot know its implementation. This
@@ -216,6 +220,21 @@ namespace CsPurity
                 if (isStatic && (isField || isProperty) && !isMethod) return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// Determines if method throws an exception.
+        ///
+        /// Return true if <paramref name="method"/> throws an exception,
+        /// otherwise false.
+        /// </summary>
+        public bool ThrowsException(Method method)
+        {
+            IEnumerable<ThrowStatementSyntax> throws = method
+                .declaration
+                .DescendantNodes()
+                .OfType<ThrowStatementSyntax>();
+            return throws.Any();
         }
 
         public static void AnalyzeAndPrint(List<string> files)
@@ -576,9 +595,19 @@ namespace CsPurity
             return (Purity)GetMethodRow(method)["purity"];
         }
 
+
+        /// <summary>
+        /// Sets the purity of <paramref name="method"/> to <paramref
+        /// name="purity"/> if <paramref name="purity"/> is less pure than
+        /// <paramref name="method"/>'s previous purity.
+        /// </summary>
+        /// <param name="method">The method</param>
+        /// <param name="purity">The new purity</param>
         public void SetPurity(Method method, Purity purity)
         {
-            GetMethodRow(method)["purity"] = purity;
+            if (purity < GetPurity(method)) {
+                GetMethodRow(method)["purity"] = purity;
+            }
         }
 
         public void PropagatePurity(Method method)
@@ -644,7 +673,6 @@ namespace CsPurity
             return result;
         }
 
-
         /// <summary>
         /// Removes all methods in the lookup table that were not declared in
         /// any of the analyzed files.
@@ -675,7 +703,6 @@ namespace CsPurity
             }
             return result;
         }
-
 
         /// <summary>
         /// Removes all interface methods from the lookup table, i.e. methods
@@ -914,13 +941,14 @@ namespace CsPurity
 
         public override string ToString()
         {
-            if (!HasKnownDeclaration())  return identifier;
+            if (!HasKnownDeclaration()) return identifier;
 
             var classAncestors = declaration
                 .Ancestors()
                 .OfType<ClassDeclarationSyntax>();
 
-            if (classAncestors.Any()) {
+            if (classAncestors.Any())
+            {
                 SyntaxToken classIdentifier = classAncestors.First().Identifier;
                 string className = classIdentifier.Text;
                 string returnType = declaration.ReturnType.ToString();
