@@ -237,61 +237,68 @@ namespace CsPurity
             return throws.Any();
         }
 
-        public static void AnalyzeAndPrint(List<string> files)
+        public static void AnalyzeAndPrint(List<string> files, bool pureAttributesOnly)
         {
             LookupTable lt = Analyze(files)
                 .StripMethodsNotDeclaredInAnalyzedFiles()
                 .StripInterfaceMethods();
-            WriteLine(lt.ToStringNoDependencySet());
+            WriteLine(lt.ToStringNoDependencySet(pureAttributesOnly));
             WriteLine("Method purity ratios:");
             lt.PrintPurityRatios();
         }
 
-        public static void AnalyzeAndPrint(string file)
+        public static void AnalyzeAndPrint(string file, bool pureAttributesOnly)
         {
-            AnalyzeAndPrint(new List<string> { file });
+            AnalyzeAndPrint(new List<string> { file }, pureAttributesOnly);
         }
 
         static void Main(string[] args)
         {
             var watch = Stopwatch.StartNew();
+            bool pureAttributesOnly = false;
+
+            if (args.Contains("--pure-attribute")) pureAttributesOnly = true;
 
             if (!args.Any())
             {
-                WriteLine("Please provide path(s) to the directory C# file(s) to be analyzed.");
+                WriteLine("Please provide path(s) to the directory of C# file(s) to be analyzed.");
             }
-            else if (args.Contains("--help"))
+            else if (args.Contains("--help") || args.Contains("-h") || args.Contains("--h"))
             {
                 WriteLine(
                     "Checks purity of C# source files in provided directory.\n\n" +
 
+                    "Usage: cspurity [options] <path to directory>.\n\n" +
+
                     "Options:\n" +
-                    "  --string\tUse this flag if input is one C# file as a string.\n" +
-                    "  --file  \tUse this flag if input is the path to each file to be analyzed."
+                    "  --string\t\tProvide argument in the form of the content of one C# file as a string.\n" +
+                    "  --files \t\tProvide arguments as the paths to individual files to be analyzed.\n" +
+                    "  --pure-attribute \tOnly output purity of methods that have the [Pure] attribute."
                 );
             }
             else if (args.Contains("--string"))
             {
-                int textIndex = Array.IndexOf(args, "--string") + 1;
-                if (textIndex < args.Length)
+                int flagIndex = Array.IndexOf(args, "--string") + 1;
+                if (flagIndex < args.Length)
                 {
-                    string file = args[textIndex];
-                    AnalyzeAndPrint(file);
+                    string file = args[flagIndex];
+                    AnalyzeAndPrint(file, pureAttributesOnly);
                 }
                 else
                 {
                     WriteLine("Missing program string to be parsed as an argument.");
                 }
             }
-            else if (args.Contains("--file") || args.Contains("--files"))
+            else if (args.Contains("--files"))
             {
                 try
                 {
-                    List<string> files = args.Skip(1).Select(
+                    int flagIndex = Array.IndexOf(args, "--files") + 1;
+                    List<string> files = args.Skip(flagIndex).Select(
                         a => File.ReadAllText(a)
                     ).ToList();
 
-                    AnalyzeAndPrint(files);
+                    AnalyzeAndPrint(files, pureAttributesOnly);
                 }
                 catch (FileNotFoundException err)
                 {
@@ -313,7 +320,7 @@ namespace CsPurity
                         SearchOption.AllDirectories
                     ).Select(a => File.ReadAllText(a)).ToList();
 
-                    AnalyzeAndPrint(files);
+                    AnalyzeAndPrint(files, pureAttributesOnly);
                 }
                 catch (FileNotFoundException err)
                 {
@@ -782,15 +789,38 @@ namespace CsPurity
 
         public string ToStringNoDependencySet()
         {
+            return ToStringNoDependencySet(false);
+        }
+
+        /// <summary>
+        /// Formats the lookup table as a string
+        /// </summary>
+        /// <param name="pureAttributeOnly">
+        /// Determines if only [Pure]
+        /// attributes should be included in the string
+        /// </param>
+        /// <returns>
+        /// The lookup table formatted as a string. If <paramref
+        /// name="pureAttributeOnly"/> is true, only methods with the [Pure]
+        /// attribute are included in the string, otherwise all methods are
+        /// included.
+        /// </returns>
+        public string ToStringNoDependencySet(bool pureAttributeOnly)
+        {
             int printoutWidth = 80;
             string result = FormatTwoColumn("METHOD", "PURITY LEVEL")
                 + new string('-', printoutWidth + 13)
                 + "\n";
             foreach (var row in table.AsEnumerable())
             {
-                string identifier = row.Field<Method>("identifier").ToString();
+                Method identifierMethod = row.Field<Method>("identifier");
+                string identifier = identifierMethod.ToString();
                 string purity = row.Field<Purity>("purity").ToString();
-                result += FormatTwoColumn(identifier, purity);
+
+                if (!pureAttributeOnly || pureAttributeOnly && identifierMethod.HasPureAttribute())
+                {
+                    result += FormatTwoColumn(identifier, purity);
+                }
             }
             return result;
 
@@ -912,6 +942,22 @@ namespace CsPurity
                 .Equals(SyntaxKind.InterfaceDeclaration);
         }
 
+
+        /// <summary>
+        /// Determines if method has a [Pure] attribute.
+        /// </summary>
+        /// <returns>
+        /// True if method has a [Pure] attribute, otherwise false.
+        /// </returns>
+        public bool HasPureAttribute()
+        {
+            return declaration.DescendantNodes().OfType<AttributeListSyntax>().Where(
+                attributeList => attributeList.Attributes.Where(
+                    attribute => attribute.Name.ToString().ToLower() == "pure"
+                ).Any()
+            ).Any();
+        }
+
         public override bool Equals(Object obj)
         {
             if (!(obj is Method)) return false;
@@ -953,7 +999,8 @@ namespace CsPurity
                 string className = classIdentifier.Text;
                 string returnType = declaration.ReturnType.ToString();
                 string methodName = declaration.Identifier.Text;
-                return $"{returnType} {className}.{methodName}";
+                string pureAttribute = HasPureAttribute() ? "[Pure] " : "";
+                return $"{pureAttribute}{returnType} {className}.{methodName}";
             }
 
             // If no ancestor is a class declaration, look for struct

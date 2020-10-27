@@ -772,6 +772,44 @@ namespace CsPurityTests
             Assert.AreEqual(lt.GetDependencies(foo).Single(), bar);
             Assert.AreEqual(lt.GetDependencies(bar).Single(), foo);
         }
+
+        [TestMethod]
+        public void TestHasPureAttribute()
+        {
+            var file = (@"
+                using System.Diagnostics.Contracts;
+
+                class Class2
+                {
+                    [Pure]
+                    public string Foo()
+                    {
+                        return ""foo"";
+                    }
+
+                    [Foo]
+                    public string Bar()
+                    {
+                        return ""bar"";
+                    }
+
+                    public string Baz()
+                    {
+                        return ""baz"";
+                    }
+                }
+            ");
+            var tree = CSharpSyntaxTree.ParseText(file);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+            var attributelist = root.DescendantNodes().OfType<AttributeListSyntax>();
+            var foo = HelpMethods.GetMethodDeclaration("Foo", root);
+            var bar = HelpMethods.GetMethodDeclaration("Bar", root);
+            var baz = HelpMethods.GetMethodDeclaration("Baz", root);
+
+            Assert.IsTrue(foo.HasPureAttribute());
+            Assert.IsFalse(bar.HasPureAttribute());
+            Assert.IsFalse(baz.HasPureAttribute());
+        }
     }
 
     [TestClass]
