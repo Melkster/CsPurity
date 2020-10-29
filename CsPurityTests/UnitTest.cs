@@ -842,6 +842,38 @@ namespace CsPurityTests
             Assert.IsFalse(foo.HasBody());
             Assert.IsFalse(getArea.HasBody());
         }
+
+        [TestMethod]
+        public void TestEnumsAreImpure()
+        {
+            var file = (@"
+            namespace Test {
+                public class TestClass {
+                    public TypeCode GetTypeCode() {
+                        return TypeCode.String;
+                    }
+
+                    public TypeCode Foo(TypeCode tc) {
+                        return tc;
+                    }
+
+                    public enum TypeCode
+                    {
+                        String = 18
+                    }
+                }
+            }
+            ");
+
+            LookupTable lt = Analyzer.Analyze(file);
+            var m = lt.GetMethodByName("GetTypeCode");
+            var foo = lt.GetMethodByName("Foo");
+
+            // Since enums are static, reading their value is considered impure
+            Assert.AreNotEqual(Purity.Pure, lt.GetPurity(m));
+            // But returning an enum or using it as a parameter is not impure
+            Assert.AreEqual(Purity.Pure, lt.GetPurity(foo));
+        }
     }
 
     [TestClass]
@@ -885,7 +917,7 @@ namespace CsPurityTests
             var bazDependencies = lt.CalculateDependencies(baz);
             var expectedFooDependencies = new List<Method> { bar, baz };
             var expectedBarDependencies = new List<Method> { baz };
-            var expectedBazDependencies = new List<Method> {};
+            var expectedBazDependencies = new List<Method>();
 
             var foo2 = HelpMethods.GetMethodDeclaration("foo", root);
             var eq = foo2.Equals(foo);
@@ -1537,7 +1569,7 @@ namespace CsPurityTests
 
             LookupTable lookupTable = new LookupTable(tree);
 
-            var expectedResult = new List<Method>() {bazDeclaration, fozDeclaration};
+            var expectedResult = new List<Method>() { bazDeclaration, fozDeclaration };
 
             Assert.IsTrue(
                 HelpMethods.HaveEqualElements(
@@ -1716,7 +1748,7 @@ namespace CsPurityTests
             LookupTable lookupTable = new LookupTable(tree);
 
             var result = lookupTable.GetCallers(bazDeclaration);
-            var expected = new List<Method> {fooDeclaration, barDeclaration};
+            var expected = new List<Method> { fooDeclaration, barDeclaration };
             Assert.IsTrue(HelpMethods.HaveEqualElements(result, expected));
             Assert.IsTrue(lookupTable.GetCallers(fozDeclaration).Count == 0);
 
