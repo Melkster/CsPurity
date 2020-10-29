@@ -125,6 +125,10 @@ namespace CsPurity
                     {
                         SetPurityAndPropagate(method, Purity.Unknown);
                     }
+                    else if (!method.HasBody())
+                    {
+                        SetPurityAndPropagate(method, Purity.Unknown);
+                    }
                 }
                 workingSet.Calculate();
             }
@@ -244,7 +248,7 @@ namespace CsPurity
                 .StripInterfaceMethods();
             WriteLine(lt.ToStringNoDependencySet(pureAttributesOnly));
             WriteLine("Method purity ratios:");
-            lt.PrintPurityRatios();
+            lt.PrintPurityRatios(pureAttributesOnly);
         }
 
         public static void AnalyzeAndPrint(string file, bool pureAttributesOnly)
@@ -737,6 +741,23 @@ namespace CsPurity
             return table.Rows.Count;
         }
 
+
+        /// <summary>
+        /// Counts the number of methods in the lookup table with the attribute
+        /// [Pure].
+        /// </summary>
+        /// <returns>The number of methods with the [Pure] attribute.</returns>
+        public int CountMethodsWithPureAttribute()
+        {
+            int sum = 0;
+            foreach (var row in table.AsEnumerable())
+            {
+                Method method = row.Field<Method>("identifier");
+                if (method.HasPureAttribute()) sum++;
+            }
+            return sum;
+        }
+
         public int CountMethodsWithPurity(Purity purity)
         {
             return table
@@ -745,13 +766,22 @@ namespace CsPurity
                 .Count();
         }
 
-        public void PrintPurityRatios()
+
+        /// <summary>
+        /// Prints purity ratios.
+        /// </summary>
+        /// <param name="pureAttributesOnly">
+        /// If true, only count methods with the [Pure] attribute.
+        /// </param>
+        public void PrintPurityRatios(bool pureAttributesOnly)
         {
-            int methodsCount = CountMethods();
+            int methodsCount = pureAttributesOnly ? CountMethodsWithPureAttribute() : CountMethods();
             double impures = CountMethodsWithPurity(Purity.Impure);
             double pures = CountMethodsWithPurity(Purity.Pure);
             double unknowns = CountMethodsWithPurity(Purity.Unknown);
-            WriteLine($"Impure: {impures}/{methodsCount}, Pure: {pures}/{methodsCount}, Unknown: {unknowns}/{methodsCount}");
+            WriteLine(
+                $"Impure: {impures}/{methodsCount}, Pure: {pures}/{methodsCount}, Unknown: {unknowns}/{methodsCount}"
+            );
         }
 
         public override string ToString()
@@ -942,7 +972,6 @@ namespace CsPurity
                 .Equals(SyntaxKind.InterfaceDeclaration);
         }
 
-
         /// <summary>
         /// Determines if method has a [Pure] attribute.
         /// </summary>
@@ -956,6 +985,11 @@ namespace CsPurity
                     attribute => attribute.Name.ToString().ToLower() == "pure"
                 ).Any()
             ).Any();
+        }
+
+        public bool HasBody()
+        {
+            return this.declaration.Body != null;
         }
 
         public override bool Equals(Object obj)

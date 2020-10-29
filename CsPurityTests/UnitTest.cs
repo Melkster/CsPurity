@@ -801,7 +801,6 @@ namespace CsPurityTests
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
-            var attributelist = root.DescendantNodes().OfType<AttributeListSyntax>();
             var foo = HelpMethods.GetMethodDeclaration("Foo", root);
             var bar = HelpMethods.GetMethodDeclaration("Bar", root);
             var baz = HelpMethods.GetMethodDeclaration("Baz", root);
@@ -809,6 +808,39 @@ namespace CsPurityTests
             Assert.IsTrue(foo.HasPureAttribute());
             Assert.IsFalse(bar.HasPureAttribute());
             Assert.IsFalse(baz.HasPureAttribute());
+        }
+
+        [TestMethod]
+        public void TestHasMethodBody()
+        {
+            var file = (@"
+                class Foz
+                {
+                    public int Bar()
+                    {
+                        return 0;
+                    }
+                }
+
+                public interface IParseTree
+                {
+                    IParseTree Foo(int i);
+                }
+
+                abstract class Shape
+                {
+                    public abstract int GetArea();
+                }
+            ");
+            var tree = CSharpSyntaxTree.ParseText(file);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+            var bar = HelpMethods.GetMethodDeclaration("Bar", root);
+            var foo = HelpMethods.GetMethodDeclaration("Foo", root);
+            var getArea = HelpMethods.GetMethodDeclaration("GetArea", root);
+
+            Assert.IsTrue(bar.HasBody());
+            Assert.IsFalse(foo.HasBody());
+            Assert.IsFalse(getArea.HasBody());
         }
     }
 
@@ -1779,6 +1811,37 @@ namespace CsPurityTests
             Assert.AreEqual(lt.CountMethodsWithPurity(Purity.Pure), 2);
             Assert.AreEqual(lt.CountMethodsWithPurity(Purity.Impure), 2);
             Assert.AreEqual(lt.CountMethodsWithPurity(Purity.Unknown), 2);
+        }
+
+        [TestMethod]
+        public void TestCountMethodsWithPureAttribute()
+        {
+            var file = (@"
+                using System.Diagnostics.Contracts;
+
+                class Class2
+                {
+                    [Pure]
+                    public string Foo()
+                    {
+                        return ""foo"";
+                    }
+
+                    [Foo]
+                    public string Bar()
+                    {
+                        return ""bar"";
+                    }
+
+                    public string Baz()
+                    {
+                        return ""baz"";
+                    }
+                }
+            ");
+            LookupTable lt = Analyzer.Analyze(file);
+
+            Assert.AreEqual(1, lt.CountMethodsWithPureAttribute());
         }
     }
 
