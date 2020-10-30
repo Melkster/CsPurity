@@ -16,6 +16,7 @@ namespace CsPurity
     public enum Purity
     {
         Impure,
+        ImpureThrowsException,
         Unknown,
         ParametricallyImpure,
         Pure
@@ -89,6 +90,7 @@ namespace CsPurity
         {
             Analyzer analyzer = new Analyzer(files);
             LookupTable table = analyzer.lookupTable;
+            WriteLine("Lookup table constructed. Calculating purity levels...");
             WorkingSet workingSet = table.workingSet;
             bool tableModified = true;
 
@@ -104,17 +106,17 @@ namespace CsPurity
                     {
                         SetPurityAndPropagate(method, GetPriorKnownPurity(method));
                     }
-                    else if (table.GetPurity(method) == Purity.Unknown)
-                    {
-                        SetPurityAndPropagate(method, Purity.Unknown);
-                    }
                     else if (analyzer.ReadsStaticFieldOrProperty(method))
                     {
                         SetPurityAndPropagate(method, Purity.Impure);
                     }
                     else if (analyzer.ThrowsException(method))
                     {
-                        SetPurityAndPropagate(method, Purity.Impure);
+                        SetPurityAndPropagate(method, Purity.ImpureThrowsException);
+                    }
+                    else if (table.GetPurity(method) == Purity.Unknown)
+                    {
+                        SetPurityAndPropagate(method, Purity.Unknown);
                     }
                     else if (method.IsInterfaceMethod())
                     // If `method` is an interface method its purity is set to
@@ -202,6 +204,8 @@ namespace CsPurity
 
         public bool ReadsStaticFieldOrProperty(Method method)
         {
+            if (method.declaration == null) return false;
+
             IEnumerable<IdentifierNameSyntax> identifiers = method
                 .declaration
                 .DescendantNodes()
@@ -234,11 +238,18 @@ namespace CsPurity
         /// </summary>
         public bool ThrowsException(Method method)
         {
+            if (method.declaration == null) return false;
+
             IEnumerable<ThrowStatementSyntax> throws = method
                 .declaration
                 .DescendantNodes()
                 .OfType<ThrowStatementSyntax>();
             return throws.Any();
+        }
+
+        public static void AnalyzeAndPrint(List<string> files)
+        {
+            AnalyzeAndPrint(files, false);
         }
 
         public static void AnalyzeAndPrint(List<string> files, bool pureAttributesOnly)
@@ -249,6 +260,11 @@ namespace CsPurity
             WriteLine(lt.ToStringNoDependencySet(pureAttributesOnly));
             WriteLine("Method purity ratios:");
             lt.PrintPurityRatios(pureAttributesOnly);
+        }
+
+        public static void AnalyzeAndPrint(string file)
+        {
+            AnalyzeAndPrint(file, false);
         }
 
         public static void AnalyzeAndPrint(string file, bool pureAttributesOnly)
@@ -409,7 +425,6 @@ namespace CsPurity
                     }
                 }
             }
-            WriteLine("Lookup table constructed.");
         }
 
         public List<Method> GetDependencies(Method method)

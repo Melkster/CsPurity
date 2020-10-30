@@ -155,6 +155,100 @@ namespace CsPurityTests
             Assert.IsTrue(analyzer.ReadsStaticFieldOrProperty(fooDeclaration));
         }
 
+        [TestMethod]
+        // Calling a static method is not considerd impure
+        public void TestCallsStaticMethod()
+        {
+            var file = (@"
+                class C1
+                {
+                    public string Foo() {
+                        return C2.bar();
+                    }
+                }
+
+                class C2
+                {
+                    public static string bar() { return ""bar""; }
+                }
+            ");
+            Analyzer analyzer = new Analyzer(file);
+            var foo = HelpMethods.GetMethodDeclaration("Foo", analyzer.lookupTable.trees.Single().GetRoot());
+
+            Assert.IsFalse(analyzer.ReadsStaticFieldOrProperty(foo));
+        }
+
+        [TestMethod]
+        // Calling a static method is not considerd impure
+        public void TestEnumInAttribute()
+        {
+            var file = (@"
+                [System.Security.SecuritySafeCritical]  // auto-generated
+                [ReliabilityContract(Consistency.WillNotCorruptState, Cer.MayFail)]
+                private unsafe static bool EqualsHelper(String strA, String strB)
+                {
+                    Contract.Requires(strA != null);
+                    Contract.Requires(strB != null);
+                    Contract.Requires(strA.Length == strB.Length);
+
+                    int length = strA.Length;
+
+                    fixed (char* ap = &strA.m_firstChar) fixed (char* bp = &strB.m_firstChar)
+                    {
+                        char* a = ap;
+                        char* b = bp;
+
+                        // unroll the loop
+        #if AMD64
+                        // for AMD64 bit platform we unroll by 12 and
+                        // check 3 qword at a time. This is less code
+                        // than the 32 bit case and is shorter
+                        // pathlength
+
+                        while (length >= 12)
+                        {
+                            if (*(long*)a     != *(long*)b) return false;
+                            if (*(long*)(a+4) != *(long*)(b+4)) return false;
+                            if (*(long*)(a+8) != *(long*)(b+8)) return false;
+                            a += 12; b += 12; length -= 12;
+                        }
+        #else
+                        while (length >= 10)
+                        {
+                            if (*(int*)a != *(int*)b) return false;
+                            if (*(int*)(a+2) != *(int*)(b+2)) return false;
+                            if (*(int*)(a+4) != *(int*)(b+4)) return false;
+                            if (*(int*)(a+6) != *(int*)(b+6)) return false;
+                            if (*(int*)(a+8) != *(int*)(b+8)) return false;
+                            a += 10; b += 10; length -= 10;
+                        }
+        #endif
+
+                        // This depends on the fact that the String objects are
+                        // always zero terminated and that the terminating zero is not included
+                        // in the length. For odd string sizes, the last compare will include
+                        // the zero terminator.
+                        while (length > 0)
+                        {
+                            if (*(int*)a != *(int*)b) break;
+                            a += 2; b += 2; length -= 2;
+                        }
+
+                        return (length <= 0);
+                    }
+                }
+
+                public enum Consistency
+                {
+                    WillNotCorruptState = 3
+                }
+            ");
+            Analyzer analyzer = new Analyzer(file);
+            var m = HelpMethods.GetMethodDeclaration("EqualsHelper", analyzer.lookupTable.trees.Single().GetRoot());
+
+            Assert.IsFalse(analyzer.ReadsStaticFieldOrProperty(m));
+        }
+
         // Implicitly static property means a non-static property pointing to a
         // static field
         //[TestMethod] // Not implemented in Analyzer for now
@@ -924,7 +1018,6 @@ namespace CsPurityTests
             var eq2 = foo.Equals(foo2);
             var l1 = new List<Method> { foo };
             var l2 = new List<Method> { foo2 };
-            var l3 = l1.Union<Method>(l2);
 
             Assert.IsTrue(eq);
             Assert.IsTrue(eq2);
