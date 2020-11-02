@@ -211,6 +211,13 @@ namespace CsPurity
                 .DescendantNodes()
                 .OfType<IdentifierNameSyntax>();
 
+            // Ignore any identifiers found in an [Attribute]
+            identifiers = identifiers.Where(
+                i => !i.Ancestors().Where(
+                    a => a.GetType() == typeof(AttributeListSyntax)
+                ).Any()
+            );
+
             foreach (var identifier in identifiers)
             {
                 SemanticModel model = Analyzer.GetSemanticModel(
