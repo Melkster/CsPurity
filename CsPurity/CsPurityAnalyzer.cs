@@ -26,7 +26,7 @@ namespace CsPurity
     {
         readonly public LookupTable lookupTable;
         // Set this to `true` if enums should be considered to be impure.
-        readonly public static bool enumsAreImpure = true;
+        readonly public static bool enumsAreImpure = false;
 
         // All methods in the knownPurities are those that
         public static readonly List<(string, Purity)> knownPurities
