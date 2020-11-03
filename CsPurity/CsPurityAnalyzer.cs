@@ -25,6 +25,8 @@ namespace CsPurity
     public class Analyzer
     {
         readonly public LookupTable lookupTable;
+        // Set this to `true` if enums should be considered to be impure.
+        readonly public static bool enumsAreImpure = true;
 
         // All methods in the knownPurities are those that
         public static readonly List<(string, Purity)> knownPurities
@@ -227,14 +229,35 @@ namespace CsPurity
                 ISymbol symbol = model.GetSymbolInfo(identifier).Symbol;
                 if (symbol == null) break;
 
+                // If enums are considered to be impure we exclude them from
+                // the check, as they will be covered by `isStatic`
+                bool isEnum = enumsAreImpure ? false : IsEnum(symbol);
+
                 bool isStatic = symbol.IsStatic;
                 bool isField = symbol.Kind == SymbolKind.Field;
                 bool isProperty = symbol.Kind == SymbolKind.Property;
                 bool isMethod = symbol.Kind == SymbolKind.Method;
 
-                if (isStatic && (isField || isProperty) && !isMethod) return true;
+                if (isStatic && (isField || isProperty) && !isMethod && !isEnum) return true;
             }
             return false;
+        }
+
+
+        /// <summary>
+        /// Determines if a symbol is an enumeration.
+        /// </summary>
+        /// <param name="symbol">
+        /// The symbol to check whether or not it is an enumeration.
+        /// </param>
+        /// <returns>
+        /// True if <paramref name="symbol"/> is of the type Enum, otherwise
+        /// false.
+        /// </returns>
+        bool IsEnum(ISymbol symbol)
+        {
+            if (symbol.ContainingType == null) return false;
+            else return symbol.ContainingType.TypeKind == TypeKind.Enum;
         }
 
         /// <summary>

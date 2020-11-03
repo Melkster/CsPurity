@@ -156,7 +156,7 @@ namespace CsPurityTests
         }
 
         [TestMethod]
-        // Calling a static method is not considerd impure
+        // Calling a static method is not considered impure
         public void TestCallsStaticMethod()
         {
             var file = (@"
@@ -903,6 +903,8 @@ namespace CsPurityTests
         [TestMethod]
         public void TestEnumsAreImpure()
         {
+            if (!Analyzer.enumsAreImpure) return;
+
             var file = (@"
             namespace Test {
                 public class TestClass {
@@ -929,6 +931,47 @@ namespace CsPurityTests
             // Since enums are static, reading their value is considered impure
             Assert.AreNotEqual(Purity.Pure, lt.GetPurity(m));
             // But returning an enum or using it as a parameter is not impure
+            Assert.AreEqual(Purity.Pure, lt.GetPurity(foo));
+        }
+
+        [TestMethod]
+        public void TestEnumsAreNotImpure()
+        {
+            if (Analyzer.enumsAreImpure) return;
+
+            var file = (@"
+            namespace Test {
+                public class TestClass {
+                    public int bar = 0;
+
+                    public bool Baz(TypeCode tc, int foo) {
+                        bar = foo;
+                        return tc == TypeCode.String;
+                    }
+
+                    public TypeCode GetTypeCode() {
+                        return TypeCode.String;
+                    }
+
+                    public TypeCode Foo(TypeCode tc) {
+                        return tc;
+                    }
+
+                    public enum TypeCode
+                    {
+                        String = 18
+                    }
+                }
+            }
+            ");
+
+            LookupTable lt = Analyzer.Analyze(file);
+            var m = lt.GetMethodByName("GetTypeCode");
+            var baz = lt.GetMethodByName("Baz");
+            var foo = lt.GetMethodByName("Foo");
+
+            Assert.AreEqual(Purity.Pure, lt.GetPurity(m));
+            Assert.AreEqual(Purity.Pure, lt.GetPurity(baz));
             Assert.AreEqual(Purity.Pure, lt.GetPurity(foo));
         }
     }
