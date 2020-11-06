@@ -289,7 +289,13 @@ namespace CsPurity
                 .StripInterfaceMethods();
             WriteLine(lt.ToStringNoDependencySet(pureAttributesOnly));
             WriteLine("Method purity ratios:");
-            lt.PrintPurityRatios(pureAttributesOnly);
+            if (pureAttributesOnly)
+            {
+                lt.PirintPurityRatiosPureAttributesOnly();
+            } else
+            {
+                lt.PrintPurityRatios();
+            }
         }
 
         public static void AnalyzeAndPrint(string file)
@@ -811,19 +817,41 @@ namespace CsPurity
                 .Count();
         }
 
+        public int CountMethodsWithPureAttributeAndPurity(Purity purity)
+        {
+            return table
+                .AsEnumerable()
+                .Where(row =>
+                    (Purity)row["purity"] == (purity) &&
+                    ((Method)row["identifier"]).HasPureAttribute()
+                ).Count();
+        }
 
         /// <summary>
         /// Prints purity ratios.
         /// </summary>
-        /// <param name="pureAttributesOnly">
-        /// If true, only count methods with the [Pure] attribute.
-        /// </param>
-        public void PrintPurityRatios(bool pureAttributesOnly)
+        public void PrintPurityRatios()
         {
-            int methodsCount = pureAttributesOnly ? CountMethodsWithPureAttribute() : CountMethods();
+            int methodsCount = CountMethods();
             double impures = CountMethodsWithPurity(Purity.Impure);
             double pures = CountMethodsWithPurity(Purity.Pure);
             double unknowns = CountMethodsWithPurity(Purity.Unknown);
+            WriteLine(
+                $"Impure: {impures}/{methodsCount}, Pure: {pures}/{methodsCount}, Unknown: {unknowns}/{methodsCount}"
+            );
+        }
+
+        /// <summary>
+        /// Prints purity ratios including only methods with the [Pure]
+        /// attribute.
+        /// </summary>
+        public void PirintPurityRatiosPureAttributesOnly()
+        {
+            int methodsCount = CountMethodsWithPureAttribute();
+            double impures = CountMethodsWithPureAttributeAndPurity(Purity.Impure)
+                + CountMethodsWithPureAttributeAndPurity(Purity.ImpureThrowsException);
+            double pures = CountMethodsWithPureAttributeAndPurity(Purity.Pure);
+            double unknowns = CountMethodsWithPureAttributeAndPurity(Purity.Unknown);
             WriteLine(
                 $"Impure: {impures}/{methodsCount}, Pure: {pures}/{methodsCount}, Unknown: {unknowns}/{methodsCount}"
             );
