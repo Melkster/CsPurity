@@ -291,7 +291,7 @@ namespace CsPurity
             WriteLine("Method purity ratios:");
             if (pureAttributesOnly)
             {
-                lt.PirintPurityRatiosPureAttributesOnly();
+                lt.PrintPurityRatiosPureAttributesOnly();
             } else
             {
                 lt.PrintPurityRatios();
@@ -833,7 +833,8 @@ namespace CsPurity
         public void PrintPurityRatios()
         {
             int methodsCount = CountMethods();
-            double impures = CountMethodsWithPurity(Purity.Impure);
+            double impures = CountMethodsWithPurity(Purity.Impure)
+                + CountMethodsWithPurity(Purity.ImpureThrowsException);
             double pures = CountMethodsWithPurity(Purity.Pure);
             double unknowns = CountMethodsWithPurity(Purity.Unknown);
             WriteLine(
@@ -845,7 +846,7 @@ namespace CsPurity
         /// Prints purity ratios including only methods with the [Pure]
         /// attribute.
         /// </summary>
-        public void PirintPurityRatiosPureAttributesOnly()
+        public void PrintPurityRatiosPureAttributesOnly()
         {
             int methodsCount = CountMethodsWithPureAttribute();
             double impures = CountMethodsWithPureAttributeAndPurity(Purity.Impure)
