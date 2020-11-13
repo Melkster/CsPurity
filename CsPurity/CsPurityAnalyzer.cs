@@ -108,7 +108,7 @@ namespace CsPurity
                     {
                         SetPurityAndPropagate(method, GetPriorKnownPurity(method));
                     }
-                    else if (analyzer.ReadsStaticFieldOrProperty(method))
+                    else if (analyzer.IsNonDeterministic(method))
                     {
                         SetPurityAndPropagate(method, Purity.Impure);
                     }
@@ -204,7 +204,13 @@ namespace CsPurity
             return knownPurities.Exists(m => m.Item1 == method.identifier);
         }
 
-        public bool ReadsStaticFieldOrProperty(Method method)
+
+        /// <summary>
+        /// TODO
+        /// </summary>
+        /// <param name="method"></param>
+        /// <returns></returns>
+        public bool IsNonDeterministic(Method method)
         {
             if (method.declaration == null) return false;
 
@@ -233,12 +239,18 @@ namespace CsPurity
                 // the check, as they will be covered by `isStatic`
                 bool isEnum = enumsAreImpure ? false : IsEnum(symbol);
 
+                bool isPrivate = symbol.DeclaredAccessibility == Accessibility.Private;
                 bool isStatic = symbol.IsStatic;
                 bool isField = symbol.Kind == SymbolKind.Field;
                 bool isProperty = symbol.Kind == SymbolKind.Property;
                 bool isMethod = symbol.Kind == SymbolKind.Method;
 
-                if (isStatic && (isField || isProperty) && !isMethod && !isEnum) return true;
+                if (
+                    (!isPrivate || isStatic) &&
+                    (isField || isProperty) &&
+                    !isMethod &&
+                    !isEnum
+                ) return true;
             }
             return false;
         }

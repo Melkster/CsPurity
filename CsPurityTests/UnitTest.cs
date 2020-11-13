@@ -81,7 +81,7 @@ namespace CsPurityTests
         }
 
         [TestMethod]
-        public void TestReadsStaticField()
+        public void TestIsDeterministic()
         {
             var file = (@"
                 class C1
@@ -128,9 +128,9 @@ namespace CsPurityTests
             var barDeclaration = HelpMethods.GetMethodDeclaration("bar", analyzer.lookupTable.trees.Single().GetRoot());
             var fazDeclaration = HelpMethods.GetMethodDeclaration("faz", analyzer.lookupTable.trees.Single().GetRoot());
 
-            Assert.IsTrue(analyzer.ReadsStaticFieldOrProperty(fooDeclaration));
-            Assert.IsFalse(analyzer.ReadsStaticFieldOrProperty(barDeclaration));
-            Assert.IsFalse(analyzer.ReadsStaticFieldOrProperty(fazDeclaration));
+            Assert.IsTrue(analyzer.IsNonDeterministic(fooDeclaration));
+            Assert.IsFalse(analyzer.IsNonDeterministic(barDeclaration));
+            Assert.IsFalse(analyzer.IsNonDeterministic(fazDeclaration));
         }
 
         [TestMethod]
@@ -152,7 +152,7 @@ namespace CsPurityTests
             Analyzer analyzer = new Analyzer(file);
             var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", analyzer.lookupTable.trees.Single().GetRoot());
 
-            Assert.IsTrue(analyzer.ReadsStaticFieldOrProperty(fooDeclaration));
+            Assert.IsTrue(analyzer.IsNonDeterministic(fooDeclaration));
         }
 
         [TestMethod]
@@ -175,7 +175,7 @@ namespace CsPurityTests
             Analyzer analyzer = new Analyzer(file);
             var foo = HelpMethods.GetMethodDeclaration("Foo", analyzer.lookupTable.trees.Single().GetRoot());
 
-            Assert.IsFalse(analyzer.ReadsStaticFieldOrProperty(foo));
+            Assert.IsFalse(analyzer.IsNonDeterministic(foo));
         }
 
         [TestMethod]
@@ -209,7 +209,7 @@ namespace CsPurityTests
             Analyzer analyzer = new Analyzer(file);
             var bar = HelpMethods.GetMethodDeclaration("Bar", analyzer.lookupTable.trees.Single().GetRoot());
 
-            Assert.IsFalse(analyzer.ReadsStaticFieldOrProperty(bar));
+            Assert.IsFalse(analyzer.IsNonDeterministic(bar));
         }
 
         // Implicitly static property means a non-static property pointing to a
@@ -239,7 +239,7 @@ namespace CsPurityTests
             Analyzer analyzer = new Analyzer(file);
             var fooDeclaration = HelpMethods.GetMethodDeclaration("foo", analyzer.lookupTable.trees.Single().GetRoot());
 
-            Assert.IsTrue(analyzer.ReadsStaticFieldOrProperty(fooDeclaration));
+            Assert.IsTrue(analyzer.IsNonDeterministic(fooDeclaration));
         }
 
         [TestMethod]
