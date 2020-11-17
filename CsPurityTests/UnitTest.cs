@@ -464,11 +464,15 @@ namespace CsPurityTests
         }
 
         [TestMethod]
-        public void TestIsBlackListed()
+        public void TestPurityIsKnownPrior()
         {
             Assert.IsTrue(Analyzer.PurityIsKnownPrior(new Method("Console.WriteLine")));
             Assert.IsFalse(Analyzer.PurityIsKnownPrior(new Method("foo")));
             Assert.IsFalse(Analyzer.PurityIsKnownPrior(new Method("")));
+
+            Assert.IsTrue(Analyzer.PurityIsKnownPrior("Console.WriteLine"));
+            Assert.IsFalse(Analyzer.PurityIsKnownPrior("foo"));
+            Assert.IsFalse(Analyzer.PurityIsKnownPrior(""));
 
             var file = (@"
                 class C1
@@ -974,6 +978,50 @@ namespace CsPurityTests
             Assert.AreEqual(Purity.Pure, lt.GetPurity(baz));
             Assert.AreEqual(Purity.Pure, lt.GetPurity(foo));
         }
+
+        [TestMethod]
+        public void TestContainsUnknownIdentifier()
+        {
+            if (Analyzer.enumsAreImpure) return;
+
+            var file = (@"
+            class A {
+                int val = 10;
+
+                int Foo()
+                {
+                    return val;
+                }
+
+                int Bar()
+                {
+                    Console.WriteLine(""bar"");
+                }
+
+                [Foo]
+                int Baz()
+                {
+                    UnknownClass.UnknownMethod();
+                }
+
+                char[] GetBestFitUnicodeToBytesData()
+                {
+                    return EmptyArray<Char>.Value;
+                }
+            }
+            ");
+
+            Analyzer analyzer = new Analyzer(file);
+            var foo = analyzer.lookupTable.GetMethodByName("Foo");
+            var bar = analyzer.lookupTable.GetMethodByName("Bar");
+            var baz = analyzer.lookupTable.GetMethodByName("Baz");
+            var m = analyzer.lookupTable.GetMethodByName("GetBestFitUnicodeToBytesData");
+
+            Assert.IsFalse(analyzer.ContainsUnknownIdentifier(foo));
+            Assert.IsFalse(analyzer.ContainsUnknownIdentifier(bar));
+            Assert.IsTrue(analyzer.ContainsUnknownIdentifier(baz));
+            Assert.IsTrue(analyzer.ContainsUnknownIdentifier(m));
+        }
     }
 
     [TestClass]
@@ -1317,7 +1365,7 @@ namespace CsPurityTests
                 {
                     void foo()
                     {
-                        Console.WriteLine();
+                        Console.WriteLine(""foo"");
                     }
                 }
             ");

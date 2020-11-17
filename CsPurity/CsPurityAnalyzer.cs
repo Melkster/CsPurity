@@ -133,6 +133,10 @@ namespace CsPurity
                     {
                         SetPurityAndPropagate(method, Purity.Unknown);
                     }
+                    else if (analyzer.ContainsUnknownIdentifier(method))
+                    {
+                        SetPurityAndPropagate(method, Purity.Unknown);
+                    }
                 }
                 workingSet.Calculate();
             }
@@ -201,12 +205,23 @@ namespace CsPurity
         /// </summary>
         public static bool PurityIsKnownPrior(Method method)
         {
-            return knownPurities.Exists(m => m.Item1 == method.identifier);
+            return PurityIsKnownPrior(method.identifier);
         }
 
-        public bool ReadsStaticFieldOrProperty(Method method)
+        public static bool PurityIsKnownPrior(String methodIdentifier)
         {
-            if (method.declaration == null) return false;
+            return knownPurities.Exists(m => m.Item1 == methodIdentifier);
+        }
+
+        /// <summary>
+        /// Gets a list of all identifiers in a method. Excludes any
+        /// identifiers found in an [Attribute].
+        /// </summary>
+        /// <param name="method">The method</param>
+        /// <returns>All IdentifierNameSyntax's inside <paramref name="method"/></returns>
+        IEnumerable<IdentifierNameSyntax> GetIdentifiers(Method method)
+        {
+            if (method.declaration == null) return new List<IdentifierNameSyntax>();
 
             IEnumerable<IdentifierNameSyntax> identifiers = method
                 .declaration
@@ -219,6 +234,13 @@ namespace CsPurity
                     a => a.GetType() == typeof(AttributeListSyntax)
                 ).Any()
             );
+
+            return identifiers;
+        }
+
+        public bool ReadsStaticFieldOrProperty(Method method)
+        {
+            IEnumerable<IdentifierNameSyntax> identifiers = GetIdentifiers(method);
 
             foreach (var identifier in identifiers)
             {
@@ -243,6 +265,42 @@ namespace CsPurity
             return false;
         }
 
+
+        /// <summary>
+        /// Checks if the methods contains an identifier with an unknown
+        /// implementation.
+        /// </summary>
+        /// <param name="method">The method to check</param>
+        /// <returns>
+        /// False if <paramref name="method"/> has a known implementation or if
+        /// it contained in the `knownPurities` list of known purities,
+        /// otherwise true.
+        /// </returns>
+        public bool ContainsUnknownIdentifier(Method method)
+        {
+            IEnumerable<IdentifierNameSyntax> identifiers = GetIdentifiers(method);
+
+            foreach (var identifier in identifiers)
+            {
+                SemanticModel model = Analyzer.GetSemanticModel(
+                    lookupTable.trees,
+                    identifier.SyntaxTree.GetRoot().SyntaxTree
+                );
+                ISymbol symbol = model.GetSymbolInfo(identifier).Symbol;
+                if (symbol == null) {
+                    // Check if the invocation that `symbol` is part of exists
+                    // in `knownPurities`, otherwise it's an unknown identifier
+                    var invocation = identifier
+                        .Ancestors()
+                        .OfType<InvocationExpressionSyntax>()
+                        ?.FirstOrDefault()
+                        ?.Expression
+                        ?.ToString();
+                    if (!PurityIsKnownPrior(invocation)) return true;
+                }
+            }
+            return false;
+        }
 
         /// <summary>
         /// Determines if a symbol is an enumeration.
@@ -682,7 +740,7 @@ namespace CsPurity
             }
         }
 
-        public LookupTable GetKnownPurities()
+        public LookupTable GetMethodsWithKnownPurities()
         {
             DataTable result = table
                 .AsEnumerable()
