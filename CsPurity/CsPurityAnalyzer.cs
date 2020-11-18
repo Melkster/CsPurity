@@ -28,7 +28,8 @@ namespace CsPurity
         // Set this to `true` if enums should be considered to be impure.
         readonly public static bool enumsAreImpure = false;
 
-        // All methods in the knownPurities are those that
+        // All methods in the knownPurities are those that have an already
+        // known purity level.
         public static readonly List<(string, Purity)> knownPurities
             = new List<(string, Purity)>
         {
@@ -370,12 +371,28 @@ namespace CsPurity
         {
             var watch = Stopwatch.StartNew();
             bool pureAttributesOnly = false;
+            List<string> validFlags = new List<string>
+            {
+                "--help",
+                "--h",
+                "-h",
+                "--string",
+                "--files",
+                "--pure-attribute"
+            };
+            IEnumerable<string> unrecognizedFlags = args
+                .Where(a => a.Substring(2) == "--")
+                .Where(a => !validFlags.Contains(a));
 
             if (args.Contains("--pure-attribute")) pureAttributesOnly = true;
 
             if (!args.Any())
             {
                 WriteLine("Please provide path(s) to the directory of C# file(s) to be analyzed.");
+            }
+            else if (unrecognizedFlags.Any()) {
+                WriteLine($"Unknown option: {unrecognizedFlags.First()}\n" +
+                    $"Try using the flag --help for more information.");
             }
             else if (args.Contains("--help") || args.Contains("-h") || args.Contains("--h"))
             {
