@@ -19,7 +19,8 @@ namespace CsPurity
         ImpureThrowsException,
         Unknown,
         ParametricallyImpure,
-        Pure
+        Pure,
+        NotScanned
     } // The order here matters as they are compared with `<`
 
     public class Analyzer
@@ -103,6 +104,8 @@ namespace CsPurity
 
                 foreach (var method in workingSet)
                 {
+                    if (method?.declaration?.Identifier.Text == "GetRealObject") { }
+
                     // Perform purity checks:
 
                     if (PurityIsKnownPrior(method))
@@ -137,6 +140,10 @@ namespace CsPurity
                     else if (analyzer.ContainsUnknownIdentifier(method))
                     {
                         SetPurityAndPropagate(method, Purity.Unknown);
+                    }
+                    else
+                    {
+                        table.SetPurity(method, Purity.Pure);
                     }
                 }
                 workingSet.Calculate();
@@ -698,7 +705,7 @@ namespace CsPurity
         {
             if (!HasMethod(methodNode))
             {
-                table.Rows.Add(methodNode, new List<Method>(), Purity.Pure);
+                table.Rows.Add(methodNode, new List<Method>(), Purity.NotScanned);
             }
         }
 
@@ -1138,7 +1145,7 @@ namespace CsPurity
 
         public bool HasBody()
         {
-            return this.declaration.Body != null;
+            return declaration?.Body != null;
         }
 
         public override bool Equals(Object obj)
@@ -1228,8 +1235,7 @@ namespace CsPurity
             foreach (var row in lookupTable.table.AsEnumerable())
             {
                 Method identifier = row.Field<Method>("identifier");
-                List<Method> dependencies = row
-                    .Field<List<Method>>("dependencies");
+                List<Method> dependencies = row.Field<List<Method>>("dependencies");
                 if (!dependencies.Any() && !history.Contains(identifier))
                 {
                     Add(identifier);
