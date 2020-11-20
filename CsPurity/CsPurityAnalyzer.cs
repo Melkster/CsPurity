@@ -19,8 +19,7 @@ namespace CsPurity
         ImpureThrowsException,
         Unknown,
         ParametricallyImpure,
-        Pure,
-        NotScanned
+        Pure
     } // The order here matters as they are compared with `<`
 
     public class Analyzer
@@ -143,13 +142,7 @@ namespace CsPurity
                     }
                     else
                     {
-                        table.SetPurity(method, Purity.Pure); // TODO: remove
-
-                        // Remove callees of `method`
-                        foreach (var caller in table.GetCallers(method))
-                        {
-                            table.RemoveDependency(caller, method);
-                        }
+                        RemoveMethodFromCallers(method);
                     }
                 }
                 workingSet.Calculate();
@@ -165,6 +158,16 @@ namespace CsPurity
             {
                 table.SetPurity(method, purity);
                 table.PropagatePurity(method);
+                tableModified = true;
+            }
+
+            // Removes method from callers of method
+            void RemoveMethodFromCallers(Method method)
+            {
+                foreach (var caller in table.GetCallers(method))
+                {
+                    table.RemoveDependency(caller, method);
+                }
                 tableModified = true;
             }
         }
@@ -715,7 +718,7 @@ namespace CsPurity
         {
             if (!HasMethod(methodNode))
             {
-                table.Rows.Add(methodNode, new List<Method>(), Purity.NotScanned);
+                table.Rows.Add(methodNode, new List<Method>(), Purity.Pure);
             }
         }
 
