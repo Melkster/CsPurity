@@ -143,7 +143,13 @@ namespace CsPurity
                     }
                     else
                     {
-                        table.SetPurity(method, Purity.Pure);
+                        table.SetPurity(method, Purity.Pure); // TODO: remove
+
+                        // Remove callees of `method`
+                        foreach (var caller in table.GetCallers(method))
+                        {
+                            table.RemoveDependency(caller, method);
+                        }
                     }
                 }
                 workingSet.Calculate();
@@ -290,11 +296,15 @@ namespace CsPurity
 
             foreach (var identifier in identifiers)
             {
+                // If the identifier is a parameter it cannot count as unknown
+                if (identifier.Parent.Kind() == SyntaxKind.Parameter) break;
+
                 SemanticModel model = Analyzer.GetSemanticModel(
                     lookupTable.trees,
                     identifier.SyntaxTree.GetRoot().SyntaxTree
                 );
                 ISymbol symbol = model.GetSymbolInfo(identifier).Symbol;
+
                 if (symbol == null) {
                     // Check if the invocation that `symbol` is part of exists
                     // in `knownPurities`, otherwise it's an unknown identifier

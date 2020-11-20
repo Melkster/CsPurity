@@ -985,30 +985,30 @@ namespace CsPurityTests
             if (Analyzer.enumsAreImpure) return;
 
             var file = (@"
-            class A {
-                int val = 10;
+                class A {
+                    int val = 10;
 
-                int Foo()
-                {
-                    return val;
-                }
+                    int Foo()
+                    {
+                        return val;
+                    }
 
-                int Bar()
-                {
-                    Console.WriteLine(""bar"");
-                }
+                    int Bar()
+                    {
+                        Console.WriteLine(""bar"");
+                    }
 
-                [Foo]
-                int Baz()
-                {
-                    UnknownClass.UnknownMethod();
-                }
+                    [Foo]
+                    int Baz()
+                    {
+                        UnknownClass.UnknownMethod();
+                    }
 
-                char[] GetBestFitUnicodeToBytesData()
-                {
-                    return EmptyArray<Char>.Value;
+                    char[] GetBestFitUnicodeToBytesData()
+                    {
+                        return EmptyArray<Char>.Value;
+                    }
                 }
-            }
             ");
 
             Analyzer analyzer = new Analyzer(file);
@@ -1021,6 +1021,33 @@ namespace CsPurityTests
             Assert.IsFalse(analyzer.ContainsUnknownIdentifier(bar));
             Assert.IsTrue(analyzer.ContainsUnknownIdentifier(baz));
             Assert.IsTrue(analyzer.ContainsUnknownIdentifier(m));
+        }
+
+        [TestMethod]
+        public void TestPureCalleImpureCaller()
+        {
+            var file = (@"
+                class A {
+
+                    int Foo()
+                    {
+                        UnknownMethod();
+                        return Bar();
+                    }
+
+                    int Bar()
+                    {
+                        return 42;
+                    }
+                }
+            ");
+
+            LookupTable lookupTable = Analyzer.Analyze(file);
+            var foo = lookupTable.GetMethodByName("Foo");
+            var bar = lookupTable.GetMethodByName("Bar");
+
+            Assert.AreEqual(Purity.Unknown, lookupTable.GetPurity(foo));
+            Assert.AreEqual(Purity.Pure, lookupTable.GetPurity(bar));
         }
     }
 
