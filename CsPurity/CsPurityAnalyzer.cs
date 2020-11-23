@@ -558,7 +558,9 @@ namespace CsPurity
             }
         }
 
-        public List<Method> GetDependencies(Method method)
+        // This method is private since dependencies get removed after
+        // calculating purities. See method CalculateDependencies().
+        private List<Method> GetDependencies(Method method)
         {
             return (List<Method>)GetMethodRow(method)["dependencies"];
         }

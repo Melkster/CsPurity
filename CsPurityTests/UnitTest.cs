@@ -670,19 +670,19 @@ namespace CsPurityTests
 
             Assert.AreEqual(lt.GetPurity(bar), Purity.Impure);
             Assert.IsTrue(HelpMethods.HaveEqualElements(
-                lt.GetDependencies(bar),
+                lt.CalculateDependencies(bar),
                 new List<Method> { foo1, foo2 }
             ));
 
             Assert.AreEqual(lt.GetPurity(bar1), Purity.Pure);
             Assert.IsTrue(HelpMethods.HaveEqualElements(
-                lt.GetDependencies(bar1),
+                lt.CalculateDependencies(bar1),
                 new List<Method> { foo1 }
             ));
 
             Assert.AreEqual(lt.GetPurity(bar2), Purity.Impure);
             Assert.IsTrue(HelpMethods.HaveEqualElements(
-                lt.GetDependencies(bar2),
+                lt.CalculateDependencies(bar2),
                 new List<Method> { foo2 }
             ));
         }
@@ -764,7 +764,7 @@ namespace CsPurityTests
             Assert.AreEqual(lt.table.Rows.Count, 1);
             Assert.IsTrue(lt.HasMethod(foo));
             Assert.AreEqual(lt.GetPurity(foo), Purity.Pure);
-            Assert.IsTrue(!lt.GetDependencies(foo).Any());
+            Assert.IsTrue(!lt.CalculateDependencies(foo).Any());
         }
 
         [TestMethod]
@@ -804,8 +804,8 @@ namespace CsPurityTests
             );
 
             Assert.AreEqual(lt.table.Rows.Count, 2);
-            Assert.AreEqual(lt.GetDependencies(foo1).Single(), foo2);
-            Assert.IsTrue(!lt.GetDependencies(foo2).Any());
+            Assert.AreEqual(lt.CalculateDependencies(foo1).Single(), foo2);
+            Assert.IsTrue(!lt.CalculateDependencies(foo2).Any());
         }
 
         [TestMethod]
@@ -830,8 +830,8 @@ namespace CsPurityTests
             var bar = HelpMethods.GetMethodByName(lt, "Bar");
 
             Assert.AreEqual(lt.table.Rows.Count, 2);
-            Assert.AreEqual(lt.GetDependencies(foo).Single(), bar);
-            Assert.AreEqual(lt.GetDependencies(bar).Single(), foo);
+            Assert.AreEqual(lt.CalculateDependencies(foo).Single(), bar);
+            Assert.AreEqual(lt.CalculateDependencies(bar).Single(), foo);
         }
 
         [TestMethod]
