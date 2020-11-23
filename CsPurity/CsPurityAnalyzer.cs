@@ -577,78 +577,64 @@ namespace CsPurity
         /// </returns>
         public List<Method> CalculateDependencies(Method method)
         {
-            List<Method> results = new List<Method>();
-            Stack<Method> stack = new Stack<Method>();
-            stack.Push(method);
-
-            // For keeping track of invocations in order to detect recursive
-            // function calls
-            Stack<Method> invocations = new Stack<Method>();
+            List<Method> result = new List<Method>();
 
             SemanticModel model = Analyzer.GetSemanticModel(
                 trees,
                 method.GetRoot().SyntaxTree
             );
 
-            while (stack.Any())
-            {
-                Method current = stack.Pop();
+            //// If the method is a delegate or local function we simply
+            //// ignore it
+            //if (method.isDelegateFunction || method.isLocalFunction)
+            //{
+            //    return result;
+            //}
 
-                // If the method is a delegate or local function we simply
-                // ignore it
-                if (current.isDelegateFunction || current.isLocalFunction)
+            // If the method doesn't have a known declaration we cannot
+            // calculate its dependencies, and so we ignore it
+            if (!method.HasKnownDeclaration())
+            {
+                AddMethod(method);
+                SetPurity(method, Purity.Unknown);
+                return result;
+            };
+
+            var methodInvocations = method
+                .declaration
+                .DescendantNodes()
+                .OfType<InvocationExpressionSyntax>();
+            if (!methodInvocations.Any()) return result;
+
+            model = Analyzer.GetSemanticModel(
+                trees,
+                method.GetRoot().SyntaxTree
+            );
+
+            foreach (var invocation in methodInvocations)
+            {
+                Method invoked = new Method(invocation, model);
+
+                // Excludes delegate and local functions
+                if (invoked.isLocalFunction || invoked.isDelegateFunction)
                 {
                     continue;
                 }
 
-                // If the method doesn't have a known declaration we cannot
-                // calculate its dependencies, and so we ignore it
-                if (!current.HasKnownDeclaration())
+                // Handles recursive calls. Don't continue analyzing
+                // invoked method if it is equal to `method` or if it is in
+                // `invocations` (which means that it was called recursively)
+                if (invoked.Equals(method))
                 {
-                    AddMethod(current);
-                    SetPurity(current, Purity.Unknown);
                     continue;
-                };
+                }
 
-                var methodInvocations = current
-                    .declaration
-                    .DescendantNodes()
-                    .OfType<InvocationExpressionSyntax>();
-                if (!methodInvocations.Any()) continue;
-
-                model = Analyzer.GetSemanticModel(
-                    trees,
-                    current.GetRoot().SyntaxTree
-                );
-
-                foreach (var invocation in methodInvocations)
+                if (!result.Contains(invoked))
                 {
-                    Method invoked = new Method(invocation, model);
-
-                    // Excludes delegate and local functions
-                    if (invoked.isLocalFunction || invoked.isDelegateFunction)
-                    {
-                        continue;
-                    }
-
-                    // Handles recursive calls. Don't continue analyzing
-                    // invoked method if it is equal to `method` or if it is in
-                    // `invocations` (which means that it was called recursively)
-                    if (invoked.Equals(method) || invocations.Contains(invoked))
-                    {
-                        continue;
-                    }
-
-                    if (!results.Contains(invoked))
-                    {
-                        results.Add(invoked);
-                    }
-
-                    invocations.Push(invoked);
-                    stack.Push(invoked);
+                    result.Add(invoked);
                 }
             }
-            return results;
+            return result;
         }
 
         /// <summary>
