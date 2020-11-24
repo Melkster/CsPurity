@@ -103,8 +103,6 @@ namespace CsPurity
 
                 foreach (var method in workingSet)
                 {
-                    if (method?.declaration?.Identifier.Text == "GetRealObject") { }
-
                     // If the method's purity already is Impure or Unknown we
                     // just propagate it and move on
                     if (table.GetPurity(method) <= Purity.Unknown) {
