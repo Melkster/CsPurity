@@ -260,8 +260,8 @@ namespace CsPurityTests
                 }
             ");
             Analyzer analyzer = new Analyzer(file);
-            var fooDeclaration = HelpMethods.GetMethodByName(analyzer.lookupTable, "foo");
-            var barDeclaration = HelpMethods.GetMethodByName(analyzer.lookupTable, "bar");
+            var fooDeclaration = analyzer.lookupTable.GetMethodByName("foo");
+            var barDeclaration = analyzer.lookupTable.GetMethodByName("bar");
             Assert.IsTrue(analyzer.ThrowsException(fooDeclaration));
             Assert.IsFalse(analyzer.ThrowsException(barDeclaration));
         }
@@ -484,7 +484,7 @@ namespace CsPurityTests
                 }
             ");
             var lt = Analyzer.Analyze(file);
-            Method foo = HelpMethods.GetMethodByName(lt, "foo");
+            Method foo = lt.GetMethodByName("foo");
 
             Assert.IsFalse(Analyzer.PurityIsKnownPrior(foo));
         }
@@ -664,9 +664,10 @@ namespace CsPurityTests
                     .Where(m => m.Identifier.Text == "Foo")
                     .Last()
                 );
-            var bar = HelpMethods.GetMethodByName(lt, "Bar");
-            var bar1 = HelpMethods.GetMethodByName(lt, "Bar1");
-            var bar2 = HelpMethods.GetMethodByName(lt, "Bar2");
+
+            var bar = lt.GetMethodByName("Bar");
+            var bar1 = lt.GetMethodByName("Bar1");
+            var bar2 = lt.GetMethodByName("Bar2");
 
             Assert.AreEqual(lt.GetPurity(bar), Purity.Impure);
             Assert.IsTrue(HelpMethods.HaveEqualElements(
@@ -826,8 +827,8 @@ namespace CsPurityTests
                 }
             ");
             LookupTable lt = Analyzer.Analyze(file);
-            var foo = HelpMethods.GetMethodByName(lt, "Foo");
-            var bar = HelpMethods.GetMethodByName(lt, "Bar");
+            var foo = lt.GetMethodByName("Foo");
+            var bar = lt.GetMethodByName("Bar");
 
             Assert.AreEqual(lt.table.Rows.Count, 2);
             Assert.AreEqual(lt.CalculateDependencies(foo).Single(), bar);
@@ -1182,21 +1183,37 @@ namespace CsPurityTests
                 }
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
-            var root = (CompilationUnitSyntax)tree.GetRoot();
             var lt = new LookupTable(tree);
 
-            var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
-            var fooDependencies = lt.CalculateDependencies(new Method(fooDeclaration));
-            var expectedResults = root
-                .DescendantNodes()
-                .OfType<MethodDeclarationSyntax>()
-                .Where(m => m.Identifier.ToString() != "foo")
-                .Select(m => new Method(m));
+            var foo = lt.GetMethodByName("foo");
+            var bar = lt.GetMethodByName("bar");
+            var baz = lt.GetMethodByName("baz");
+
+            var fooDependencies = lt.CalculateDependencies(foo);
+            var expectedFooDependencies = new List<Method> { bar };
+
+            var barDependencies = lt.CalculateDependencies(bar);
+            var expectedBarDependencies = new List<Method> { baz };
+
+            var bazDependencies = lt.CalculateDependencies(baz);
+            var expectedBazDependencies = new List<Method> { };
 
             Assert.IsTrue(
                 HelpMethods.HaveEqualElements(
                     fooDependencies,
-                    expectedResults
+                    expectedFooDependencies
+                )
+            );
+            Assert.IsTrue(
+                HelpMethods.HaveEqualElements(
+                    barDependencies,
+                    expectedBarDependencies
+                )
+            );
+            Assert.IsTrue(
+                HelpMethods.HaveEqualElements(
+                    bazDependencies,
+                    expectedBazDependencies
                 )
             );
         }
@@ -1234,21 +1251,54 @@ namespace CsPurityTests
                 }
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
-            var root = (CompilationUnitSyntax)tree.GetRoot();
-
-            var fooDeclaration = root.DescendantNodes().OfType<MethodDeclarationSyntax>().First();
             var lt = new LookupTable(tree);
-            var fooDependencies = lt.CalculateDependencies(new Method(fooDeclaration));
-            var expectedResults = root
-                .DescendantNodes()
-                .OfType<MethodDeclarationSyntax>()
-                .Where(m => m.Identifier.ToString() != "foo")
-                .Select(m => new Method(m));
+
+            var foo = lt.GetMethodByName("foo");
+            var bar = lt.GetMethodByName("bar");
+            var baz = lt.GetMethodByName("baz");
+            var far = lt.GetMethodByName("far");
+            var faz = lt.GetMethodByName("faz");
+
+            var fooDependencies = lt.CalculateDependencies(foo);
+            var barDependencies = lt.CalculateDependencies(bar);
+            var bazDependencies = lt.CalculateDependencies(baz);
+            var farDependencies = lt.CalculateDependencies(far);
+            var fazDependencies = lt.CalculateDependencies(faz);
+
+            var expectedFooDependencies = new List<Method> { bar, baz };
+            var expectedBarDependencies = new List<Method> { far, faz };
+            var expectedBazDependencies = new List<Method> { };
+            var expectedFarDependencies = new List<Method> { };
+            var expectedFazDependencies = new List<Method> { };
 
             Assert.IsTrue(
                 HelpMethods.HaveEqualElements(
                     fooDependencies,
-                    expectedResults
+                    expectedFooDependencies
+                )
+            );
+            Assert.IsTrue(
+                HelpMethods.HaveEqualElements(
+                    barDependencies,
+                    expectedBarDependencies
+                )
+            );
+            Assert.IsTrue(
+                HelpMethods.HaveEqualElements(
+                    bazDependencies,
+                    expectedBazDependencies
+                )
+            );
+            Assert.IsTrue(
+                HelpMethods.HaveEqualElements(
+                    farDependencies,
+                    expectedFarDependencies
+                )
+            );
+            Assert.IsTrue(
+                HelpMethods.HaveEqualElements(
+                    fazDependencies,
+                    expectedFazDependencies
                 )
             );
         }

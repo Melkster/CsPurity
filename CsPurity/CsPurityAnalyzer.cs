@@ -105,6 +105,14 @@ namespace CsPurity
                 {
                     if (method?.declaration?.Identifier.Text == "GetRealObject") { }
 
+                    // If the method's purity already is Impure or Unknown we
+                    // just propagate it and move on
+                    if (table.GetPurity(method) <= Purity.Unknown) {
+                        table.PropagatePurity(method);
+                        tableModified = true;
+                        continue;
+                    }
+
                     // Perform purity checks:
 
                     if (PurityIsKnownPrior(method))
