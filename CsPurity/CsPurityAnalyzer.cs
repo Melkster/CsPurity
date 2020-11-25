@@ -105,7 +105,19 @@ namespace CsPurity
                 {
                     // Perform purity checks:
 
-                    if (PurityIsKnownPrior(method))
+                    Purity currentPurity = table.GetPurity(method);
+
+                    if (
+                        currentPurity == Purity.Impure ||
+                        currentPurity == Purity.ImpureThrowsException
+                    )
+                    // If the method's purity already is Impure we simply
+                    // propagate it and move on. Checks for Unknown are done in
+                    // a later check in this method.
+                    {
+                        PropagatePurity(method);
+                    }
+                    else if (PurityIsKnownPrior(method))
                     {
                         SetPurityAndPropagate(method, GetPriorKnownPurity(method));
                     }
@@ -119,7 +131,7 @@ namespace CsPurity
                     }
                     else if (table.GetPurity(method) == Purity.Unknown)
                     {
-                        SetPurityAndPropagate(method, Purity.Unknown);
+                        PropagatePurity(method);
                     }
                     else if (method.IsInterfaceMethod())
                     // If `method` is an interface method its purity is set to
@@ -138,10 +150,25 @@ namespace CsPurity
                     {
                         SetPurityAndPropagate(method, Purity.Unknown);
                     }
+                    else
+                    {
+                        RemoveMethodFromCallers(method);
+                    }
                 }
                 workingSet.Calculate();
             }
             return table;
+
+            void PropagatePurity(Method method)
+            {
+                Purity purity = table.GetPurity(method);
+                foreach (var caller in table.GetCallers(method))
+                {
+                    table.SetPurity(caller, purity);
+                    table.RemoveDependency(caller, method);
+                }
+                tableModified = true;
+            }
 
             /// <summary>
             /// Sets <paramref name="method"/>'s purity level to <paramref name="purity"/>.
@@ -151,7 +178,17 @@ namespace CsPurity
             void SetPurityAndPropagate(Method method, Purity purity)
             {
                 table.SetPurity(method, purity);
-                table.PropagatePurity(method);
+                PropagatePurity(method);
+                tableModified = true;
+            }
+
+            // Removes method from callers of method
+            void RemoveMethodFromCallers(Method method)
+            {
+                foreach (var caller in table.GetCallers(method))
+                {
+                    table.RemoveDependency(caller, method);
+                }
                 tableModified = true;
             }
         }
@@ -283,11 +320,15 @@ namespace CsPurity
 
             foreach (var identifier in identifiers)
             {
+                // If the identifier is a parameter it cannot count as unknown
+                if (identifier.Parent.Kind() == SyntaxKind.Parameter) continue;
+
                 SemanticModel model = Analyzer.GetSemanticModel(
                     lookupTable.trees,
                     identifier.SyntaxTree.GetRoot().SyntaxTree
                 );
                 ISymbol symbol = model.GetSymbolInfo(identifier).Symbol;
+
                 if (symbol == null) {
                     // Check if the invocation that `symbol` is part of exists
                     // in `knownPurities`, otherwise it's an unknown identifier
@@ -538,7 +579,9 @@ namespace CsPurity
             }
         }
 
-        public List<Method> GetDependencies(Method method)
+        // This method is private since dependencies get removed after
+        // calculating purities. See method CalculateDependencies().
+        private List<Method> GetDependencies(Method method)
         {
             return (List<Method>)GetMethodRow(method)["dependencies"];
         }
@@ -557,78 +600,64 @@ namespace CsPurity
         /// </returns>
         public List<Method> CalculateDependencies(Method method)
         {
-            List<Method> results = new List<Method>();
-            Stack<Method> stack = new Stack<Method>();
-            stack.Push(method);
-
-            // For keeping track of invocations in order to detect recursive
-            // function calls
-            Stack<Method> invocations = new Stack<Method>();
+            List<Method> result = new List<Method>();
 
             SemanticModel model = Analyzer.GetSemanticModel(
                 trees,
                 method.GetRoot().SyntaxTree
             );
 
-            while (stack.Any())
+            // If the method is a delegate or local function we simply
+            // ignore it
+            if (method.isDelegateFunction || method.isLocalFunction)
             {
-                Method current = stack.Pop();
+                return result;
+            }
 
-                // If the method is a delegate or local function we simply
-                // ignore it
-                if (current.isDelegateFunction || current.isLocalFunction)
+            // If the method doesn't have a known declaration we cannot
+            // calculate its dependencies, and so we ignore it
+            if (!method.HasKnownDeclaration())
+            {
+                AddMethod(method);
+                SetPurity(method, Purity.Unknown);
+                return result;
+            };
+
+            var methodInvocations = method
+                .declaration
+                .DescendantNodes()
+                .OfType<InvocationExpressionSyntax>();
+            if (!methodInvocations.Any()) return result;
+
+            model = Analyzer.GetSemanticModel(
+                trees,
+                method.GetRoot().SyntaxTree
+            );
+
+            foreach (var invocation in methodInvocations)
+            {
+                Method invoked = new Method(invocation, model);
+
+                // Excludes delegate and local functions
+                if (invoked.isLocalFunction || invoked.isDelegateFunction)
                 {
                     continue;
                 }
 
-                // If the method doesn't have a known declaration we cannot
-                // calculate its dependencies, and so we ignore it
-                if (!current.HasKnownDeclaration())
+                // Handles recursive calls. Don't continue analyzing
+                // invoked method if it is equal to `method` or if it is in
+                // `invocations` (which means that it was called recursively)
+                if (invoked.Equals(method))
                 {
-                    AddMethod(current);
-                    SetPurity(current, Purity.Unknown);
                     continue;
-                };
+                }
 
-                var methodInvocations = current
-                    .declaration
-                    .DescendantNodes()
-                    .OfType<InvocationExpressionSyntax>();
-                if (!methodInvocations.Any()) continue;
-
-                model = Analyzer.GetSemanticModel(
-                    trees,
-                    current.GetRoot().SyntaxTree
-                );
-
-                foreach (var invocation in methodInvocations)
+                if (!result.Contains(invoked))
                 {
-                    Method invoked = new Method(invocation, model);
-
-                    // Excludes delegate and local functions
-                    if (invoked.isLocalFunction || invoked.isDelegateFunction)
-                    {
-                        continue;
-                    }
-
-                    // Handles recursive calls. Don't continue analyzing
-                    // invoked method if it is equal to `method` or if it is in
-                    // `invocations` (which means that it was called recursively)
-                    if (invoked.Equals(method) || invocations.Contains(invoked))
-                    {
-                        continue;
-                    }
-
-                    if (!results.Contains(invoked))
-                    {
-                        results.Add(invoked);
-                    }
-
-                    invocations.Push(invoked);
-                    stack.Push(invoked);
+                    result.Add(invoked);
                 }
             }
-            return results;
+            return result;
         }
 
         /// <summary>
@@ -744,16 +773,6 @@ namespace CsPurity
         {
             if (purity < GetPurity(method)) {
                 GetMethodRow(method)["purity"] = purity;
-            }
-        }
-
-        public void PropagatePurity(Method method)
-        {
-            Purity purity = GetPurity(method);
-            foreach (var caller in GetCallers(method))
-            {
-                SetPurity(caller, purity);
-                RemoveDependency(caller, method);
             }
         }
 
@@ -1138,7 +1157,7 @@ namespace CsPurity
 
         public bool HasBody()
         {
-            return this.declaration.Body != null;
+            return declaration?.Body != null;
         }
 
         public override bool Equals(Object obj)
@@ -1228,8 +1247,7 @@ namespace CsPurity
             foreach (var row in lookupTable.table.AsEnumerable())
             {
                 Method identifier = row.Field<Method>("identifier");
-                List<Method> dependencies = row
-                    .Field<List<Method>>("dependencies");
+                List<Method> dependencies = row.Field<List<Method>>("dependencies");
                 if (!dependencies.Any() && !history.Contains(identifier))
                 {
                     Add(identifier);
