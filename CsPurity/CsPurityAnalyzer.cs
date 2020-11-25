@@ -19,7 +19,8 @@ namespace CsPurity
         ImpureThrowsException,
         Unknown,
         ParametricallyImpure,
-        Pure
+        Pure,
+        NotScanned
     } // The order here matters as they are compared with `<`
 
     public class Analyzer
@@ -103,17 +104,21 @@ namespace CsPurity
 
                 foreach (var method in workingSet)
                 {
-                    // If the method's purity already is Impure or Unknown we
-                    // just propagate it and move on
-                    if (table.GetPurity(method) <= Purity.Unknown) {
-                        table.PropagatePurity(method);
-                        tableModified = true;
-                        continue;
-                    }
-
                     // Perform purity checks:
 
-                    if (PurityIsKnownPrior(method))
+                    Purity currentPurity = table.GetPurity(method);
+
+                    if (
+                        currentPurity == Purity.Impure ||
+                        currentPurity == Purity.ImpureThrowsException
+                    )
+                    // If the method's purity already is Impure we simply
+                    // propagate it and move on. Checks for Unknown are done in
+                    // a later check in this method.
+                    {
+                        PropagatePurity(method);
+                    }
+                    else if (PurityIsKnownPrior(method))
                     {
                         SetPurityAndPropagate(method, GetPriorKnownPurity(method));
                     }
@@ -127,7 +132,7 @@ namespace CsPurity
                     }
                     else if (table.GetPurity(method) == Purity.Unknown)
                     {
-                        SetPurityAndPropagate(method, Purity.Unknown);
+                        PropagatePurity(method);
                     }
                     else if (method.IsInterfaceMethod())
                     // If `method` is an interface method its purity is set to
@@ -149,11 +154,23 @@ namespace CsPurity
                     else
                     {
                         RemoveMethodFromCallers(method);
+                        table.SetPurity(method, Purity.Pure); // TODO: remove this
                     }
                 }
                 workingSet.Calculate();
             }
             return table;
+
+            void PropagatePurity(Method method)
+            {
+                Purity purity = table.GetPurity(method);
+                foreach (var caller in table.GetCallers(method))
+                {
+                    table.SetPurity(caller, purity);
+                    table.RemoveDependency(caller, method);
+                }
+                tableModified = true;
+            }
 
             /// <summary>
             /// Sets <paramref name="method"/>'s purity level to <paramref name="purity"/>.
@@ -163,7 +180,7 @@ namespace CsPurity
             void SetPurityAndPropagate(Method method, Purity purity)
             {
                 table.SetPurity(method, purity);
-                table.PropagatePurity(method);
+                PropagatePurity(method);
                 tableModified = true;
             }
 
@@ -306,7 +323,7 @@ namespace CsPurity
             foreach (var identifier in identifiers)
             {
                 // If the identifier is a parameter it cannot count as unknown
-                if (identifier.Parent.Kind() == SyntaxKind.Parameter) break;
+                if (identifier.Parent.Kind() == SyntaxKind.Parameter) continue;
 
                 SemanticModel model = Analyzer.GetSemanticModel(
                     lookupTable.trees,
@@ -712,7 +729,7 @@ namespace CsPurity
         {
             if (!HasMethod(methodNode))
             {
-                table.Rows.Add(methodNode, new List<Method>(), Purity.Pure);
+                table.Rows.Add(methodNode, new List<Method>(), Purity.NotScanned);
             }
         }
 
@@ -758,16 +775,6 @@ namespace CsPurity
         {
             if (purity < GetPurity(method)) {
                 GetMethodRow(method)["purity"] = purity;
-            }
-        }
-
-        public void PropagatePurity(Method method)
-        {
-            Purity purity = GetPurity(method);
-            foreach (var caller in GetCallers(method))
-            {
-                SetPurity(caller, purity);
-                RemoveDependency(caller, method);
             }
         }
 
