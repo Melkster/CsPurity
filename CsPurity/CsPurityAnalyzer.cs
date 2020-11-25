@@ -19,8 +19,7 @@ namespace CsPurity
         ImpureThrowsException,
         Unknown,
         ParametricallyImpure,
-        Pure,
-        NotScanned
+        Pure
     } // The order here matters as they are compared with `<`
 
     public class Analyzer
@@ -154,7 +153,6 @@ namespace CsPurity
                     else
                     {
                         RemoveMethodFromCallers(method);
-                        table.SetPurity(method, Purity.Pure); // TODO: remove this
                     }
                 }
                 workingSet.Calculate();
@@ -729,7 +727,7 @@ namespace CsPurity
         {
             if (!HasMethod(methodNode))
             {
-                table.Rows.Add(methodNode, new List<Method>(), Purity.NotScanned);
+                table.Rows.Add(methodNode, new List<Method>(), Purity.Pure);
             }
         }
 
