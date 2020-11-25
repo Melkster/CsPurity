@@ -607,12 +607,12 @@ namespace CsPurity
                 method.GetRoot().SyntaxTree
             );
 
-            //// If the method is a delegate or local function we simply
-            //// ignore it
-            //if (method.isDelegateFunction || method.isLocalFunction)
-            //{
-            //    return result;
-            //}
+            // If the method is a delegate or local function we simply
+            // ignore it
+            if (method.isDelegateFunction || method.isLocalFunction)
+            {
+                return result;
+            }
 
             // If the method doesn't have a known declaration we cannot
             // calculate its dependencies, and so we ignore it
