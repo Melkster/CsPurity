@@ -425,7 +425,10 @@ namespace CsPurity
                 .Where(a => a.Substring(2) == "--")
                 .Where(a => !validFlags.Contains(a));
 
-            if (args.Contains("--pure-attribute")) pureAttributesOnly = true;
+            if (args.Contains("--pure-attribute")) {
+                pureAttributesOnly = true;
+                args = args.Except(new string[] { "--pure-attribute" }).ToArray();
+            }
 
             if (!args.Any())
             {
