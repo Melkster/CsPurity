@@ -624,7 +624,7 @@ namespace CsPurity
                 AddMethod(method);
                 SetPurity(method, Purity.Unknown);
                 return result;
-            };
+            }
 
             var methodInvocations = method
                 .declaration
@@ -1065,43 +1065,40 @@ namespace CsPurity
             {
                 SetIdentifier(methodInvocation);
                 return;
-            };
+            }
 
             var declaringReferences = symbol.DeclaringSyntaxReferences;
+            var methodSymbol = (IMethodSymbol)symbol;
             if (declaringReferences.Length < 1)
             {
                 SetIdentifier(methodInvocation);
-                return;
-            };
-
-            // Handles local functions
-            var methodSymbol = (IMethodSymbol)symbol;
-            if (methodSymbol.MethodKind == MethodKind.LocalFunction)
+            }
+            else if (methodSymbol.MethodKind == MethodKind.LocalFunction)
             {
+                // Handles local functions
                 isLocalFunction = true;
                 identifier = "*local function*";
-                return;
             }
-
-            if (methodSymbol.MethodKind == MethodKind.DelegateInvoke)
+            else if (methodSymbol.MethodKind == MethodKind.DelegateInvoke)
             {
+                // Handles delegates
                 identifier = "*delegate invocation";
                 isDelegateFunction = true;
-                return;
             }
-
-            // Handles the case of `BeginInvoke` and `EndInvoke`
-            if (declaringReferences.Single().GetSyntax().Kind() == SyntaxKind.DelegateDeclaration)
+            else if (declaringReferences.Single().GetSyntax().Kind() == SyntaxKind.DelegateDeclaration)
             {
+                // Handles the case of `BeginInvoke` and `EndInvoke`
                 identifier = "*delegate invocation*";
                 isDelegateFunction = true;
-                return;
             }
-
-            // not sure if this cast from SyntaxNode to MethodDeclarationSyntax always works
-            declaration = (MethodDeclarationSyntax)declaringReferences
-                .Single()
-                .GetSyntax();
+            else
+            {
+                // Not sure if this cast from SyntaxNode to
+                // `MethodDeclarationSyntax` always works
+                declaration = (MethodDeclarationSyntax)declaringReferences
+                    .Single()
+                    .GetSyntax();
+            }
         }
 
         public Method(MethodDeclarationSyntax declaration)
@@ -1190,7 +1187,7 @@ namespace CsPurity
                 {
                     return false;
                 }
-            };
+            }
         }
 
         public override int GetHashCode()
