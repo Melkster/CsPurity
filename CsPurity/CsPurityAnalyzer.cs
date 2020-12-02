@@ -1075,17 +1075,26 @@ namespace CsPurity
             };
 
             // Handles local functions
-            if ((symbol as IMethodSymbol).MethodKind == MethodKind.LocalFunction)
+            var methodSymbol = (IMethodSymbol)symbol;
+            if (methodSymbol.MethodKind == MethodKind.LocalFunction)
             {
                 isLocalFunction = true;
                 identifier = "*local function*";
                 return;
             }
 
-            if ((symbol as IMethodSymbol).MethodKind == MethodKind.DelegateInvoke)
+            if (methodSymbol.MethodKind == MethodKind.DelegateInvoke)
             {
+                identifier = "*delegate invocation";
                 isDelegateFunction = true;
-                identifier = "*delegate function*";
+                return;
+            }
+
+            // Handles the case of `BeginInvoke` and `EndInvoke`
+            if (declaringReferences.Single().GetSyntax().Kind() == SyntaxKind.DelegateDeclaration)
+            {
+                identifier = "*delegate invocation*";
+                isDelegateFunction = true;
                 return;
             }
 

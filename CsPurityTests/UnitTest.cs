@@ -597,25 +597,30 @@ namespace CsPurityTests
                 class Program
                 {
                     // delegate declaration
-                    public delegate void printString(string s);
+                    public delegate void PrintString(string s);
 
                     public static void WriteToScreen(string str) {
-                       Console.WriteLine(""The String is: {0}"", str);
+                        Console.WriteLine(""The String is: {0}"", str);
                     }
 
-                    public static void sendString(printString ps) {
-                       ps(""Hello World"");
+                    public static void sendString(PrintString ps) {
+                        ps(""Hello World"");
                     }
 
                     static void Foo() {
-                       printString ps1 = new printString(WriteToScreen);
-                       sendString(ps1);
+                        PrintString ps1 = new PrintString(WriteToScreen);
+                        sendString(ps1);
+                    }
+
+                    static void Bar() {
+                        PrintString ps1 = new PrintString(WriteToScreen);
+                        ps1.BeginInvoke(""foo"", null, null);
+                        ps1.EndInvoke(null);
                     }
                 }
             ");
             LookupTable lt = Analyzer.Analyze(file);
-            Assert.AreEqual(lt.table.Rows.Count, 4);
-            WriteLine(lt);
+            Assert.AreEqual(lt.table.Rows.Count, 5);
         }
 
         [TestMethod]
