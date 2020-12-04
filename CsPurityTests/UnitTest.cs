@@ -2102,7 +2102,8 @@ namespace CsPurityTests
             ");
             LookupTable lt = Analyzer.Analyze(file);
 
-            Assert.AreEqual(1, lt.CountMethodsWithPureAttribute());
+            Assert.AreEqual(1, lt.CountMethods(true));
+            Assert.AreEqual(2, lt.CountMethods(false));
         }
 
         [TestMethod]
@@ -2156,6 +2157,57 @@ namespace CsPurityTests
             Assert.AreEqual(2, lt.CountMethodsWithPurity(Purity.Pure, false));
             Assert.AreEqual(1, lt.CountMethodsWithPurity(Purity.Impure, true));
             Assert.AreEqual(2, lt.CountMethodsWithPurity(Purity.Impure, false));
+        }
+
+        [TestMethod]
+        public void TestCountFalsePositivesAndNegatives()
+        {
+            var file = (@"
+                using System.Diagnostics.Contracts;
+
+                class Class2
+                {
+                    static int global = 0;
+
+                    [Pure]
+                    public string PureWithPureAttribute()
+                    {
+                        return ""foo"";
+                    }
+
+                    [Foo]
+                    public string PureWithNoPureAttribute()
+                    {
+                        return ""bar"";
+                    }
+
+                    public string PureWithNoAttribute()
+                    {
+                        return ""baz"";
+                    }
+
+                    public void ImpureWithNoAttribute()
+                    {
+                        global ++;
+                    }
+
+                    [Pure]
+                    public void ImpureWithPureAttribute()
+                    {
+                        global += 10;
+                    }
+
+                    [Foo]
+                    public void ImpureWithNoPureAttribute()
+                    {
+                        global += 12;
+                    }
+                }
+            ");
+            LookupTable lt = Analyzer.Analyze(file);
+
+            Assert.AreEqual(2, lt.CountFalsePositives());
+            Assert.AreEqual(1, lt.CountFalseNegatives());
         }
     }
 

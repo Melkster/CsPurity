@@ -893,18 +893,24 @@ namespace CsPurity
 
         /// <summary>
         /// Counts the number of methods in the lookup table with the attribute
-        /// [Pure].
+        /// [Pure], or without the [Pure] attribute.
         /// </summary>
-        /// <returns>The number of methods with the [Pure] attribute.</returns>
-        public int CountMethodsWithPureAttribute()
+        /// <param name="havePureAttribute">
+        /// Determines if the methods should have the [Pure] attribute or not
+        /// </param>
+        /// <returns>
+        /// The number of methods with the [Pure] attribute, if <paramref
+        /// name="havePureAttribute"/> is true, otherwise the number of methods
+        /// without the [Pure] attribute.
+        /// </returns>
+        public int CountMethods(bool havePureAttribute)
         {
-            int sum = 0;
-            foreach (var row in table.AsEnumerable())
+            return table.AsEnumerable().Where(row =>
             {
                 Method method = row.Field<Method>("identifier");
-                if (method.HasPureAttribute()) sum++;
-            }
-            return sum;
+                return method.HasPureAttribute() && havePureAttribute ||
+                    !method.HasPureAttribute() && !havePureAttribute;
+            }).Count();
         }
 
         /// <summary>
@@ -919,7 +925,7 @@ namespace CsPurity
         {
             return table
                 .AsEnumerable()
-                .Where(row => (Purity)row["purity"] == (purity))
+                .Where(row => row.Field<Purity>("purity") == (purity))
                 .Count();
         }
 
@@ -953,6 +959,16 @@ namespace CsPurity
             }).Count();
         }
 
+        public int CountFalsePositives()
+        {
+            return CountMethodsWithPurity(Purity.Pure, false);
+        }
+
+        public int CountFalseNegatives()
+        {
+            return CountMethodsWithPurity(Purity.Impure, true);
+        }
+
         /// <summary>
         /// Prints purity ratios.
         /// </summary>
@@ -974,7 +990,7 @@ namespace CsPurity
         /// </summary>
         public void PrintPurityRatiosPureAttributesOnly()
         {
-            int methodsCount = CountMethodsWithPureAttribute();
+            int methodsCount = CountMethods(true);
             double impures = CountMethodsWithPurity(Purity.Impure, true)
                 + CountMethodsWithPurity(Purity.ImpureThrowsException, true);
             double pures = CountMethodsWithPurity(Purity.Pure, true);
