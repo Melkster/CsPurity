@@ -422,6 +422,7 @@ namespace CsPurity
                 "--pure-attribute"
             };
             IEnumerable<string> unrecognizedFlags = args
+                .Where(a => a.Length > 2)
                 .Where(a => a.Substring(2) == "--")
                 .Where(a => !validFlags.Contains(a));
 
@@ -906,6 +907,14 @@ namespace CsPurity
             return sum;
         }
 
+        /// <summary>
+        /// Counts the number of methods with a given purity level.
+        /// </summary>
+        /// <param name="purity">The purity level</param>
+        /// <returns>
+        /// The number of methods with the purity level <paramref
+        /// name="purity"/>.
+        /// </returns>
         public int CountMethodsWithPurity(Purity purity)
         {
             return table
@@ -914,14 +923,34 @@ namespace CsPurity
                 .Count();
         }
 
-        public int CountMethodsWithPureAttributeAndPurity(Purity purity)
+        /// <summary>
+        /// Counts the number of methods with a given purity level and only
+        /// those either with, or without the [Pure] attribute.
+        /// </summary>
+        /// <param name="purity">The purity level</param>
+        /// <param name="hasPureAttribute">
+        /// Determines if the methods should have the [Pure] attribute or not
+        /// </param>
+        /// <returns>
+        /// The number of methods with the purity level <paramref
+        /// name="purity"/> and the [Pure] attribute if <paramref
+        /// name="hasPureAttribute"/> is true, otherwise the number of methods
+        /// with the purity level <paramref name="purity"/> but with no [Pure]
+        /// attribute.
+        /// </returns>
+        public int CountMethodsWithPurity(Purity purity, bool hasPureAttribute)
         {
-            return table
-                .AsEnumerable()
-                .Where(row =>
-                    (Purity)row["purity"] == (purity) &&
-                    ((Method)row["identifier"]).HasPureAttribute()
-                ).Count();
+            return table.AsEnumerable().Where(row =>
+            {
+                bool hasPurity = row.Field<Purity>("purity") == purity;
+                bool methodHasPureAttribute = row.Field<Method>("identifier")
+                    .HasPureAttribute();
+
+                return hasPurity && (
+                    methodHasPureAttribute && hasPureAttribute ||
+                    !methodHasPureAttribute && !hasPureAttribute
+                );
+            }).Count();
         }
 
         /// <summary>
@@ -946,10 +975,10 @@ namespace CsPurity
         public void PrintPurityRatiosPureAttributesOnly()
         {
             int methodsCount = CountMethodsWithPureAttribute();
-            double impures = CountMethodsWithPureAttributeAndPurity(Purity.Impure)
-                + CountMethodsWithPureAttributeAndPurity(Purity.ImpureThrowsException);
-            double pures = CountMethodsWithPureAttributeAndPurity(Purity.Pure);
-            double unknowns = CountMethodsWithPureAttributeAndPurity(Purity.Unknown);
+            double impures = CountMethodsWithPurity(Purity.Impure, true)
+                + CountMethodsWithPurity(Purity.ImpureThrowsException, true);
+            double pures = CountMethodsWithPurity(Purity.Pure, true);
+            double unknowns = CountMethodsWithPurity(Purity.Unknown, true);
             WriteLine(
                 $"Impure: {impures}/{methodsCount}, Pure: {pures}/{methodsCount}, Unknown: {unknowns}/{methodsCount}"
             );
