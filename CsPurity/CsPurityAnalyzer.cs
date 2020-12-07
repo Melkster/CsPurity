@@ -525,7 +525,7 @@ namespace CsPurity
         public LookupTable()
         {
             table.Columns.Add("identifier", typeof(Method));
-            table.Columns.Add("dependencies", typeof(List<Method>));
+            table.Columns.Add("dependencies", typeof(IEnumerable<Method>));
             table.Columns.Add("purity", typeof(Purity));
         }
 
@@ -571,9 +571,9 @@ namespace CsPurity
                     // MethodDeclarationSyntaxes
                     if (!method.IsInterfaceMethod())
                     {
-                        AddMethod(method);
                         WriteLine($"Calculating dependencies for {method}.");
                         var dependencies = CalculateDependencies(method);
+                        AddMethod(method);
                         foreach (var dependency in dependencies)
                         {
                             AddDependency(method, dependency);
@@ -585,9 +585,9 @@ namespace CsPurity
 
         // This method is private since dependencies get removed after
         // calculating purities. See method CalculateDependencies().
-        private List<Method> GetDependencies(Method method)
+        private IEnumerable<Method> GetDependencies(Method method)
         {
-            return (List<Method>)GetMethodRow(method)["dependencies"];
+            return GetMethodRow(method).Field<IEnumerable<Method>>("dependencies");
         }
 
         /// <summary>
@@ -602,10 +602,15 @@ namespace CsPurity
         /// A list of all unique Methods that <paramref name="method"/>
         /// depends on.
         /// </returns>
-        public List<Method> CalculateDependencies(Method method)
+        public IEnumerable<Method> CalculateDependencies(Method method)
         {
-            List<Method> result = new List<Method>();
+            // If the dependencies have already been computed, return them
+            if (HasMethod(method) && GetDependencies(method).Any())
+            {
+                return GetDependencies(method);
+            }
 
+            Stack<Method> result = new Stack<Method>();
             SemanticModel model = Analyzer.GetSemanticModel(
                 trees,
                 method.GetRoot().SyntaxTree
@@ -638,30 +643,24 @@ namespace CsPurity
                 method.GetRoot().SyntaxTree
             );
 
-            foreach (var invocation in methodInvocations)
+            foreach (var invocation in methodInvocations.Distinct())
             {
                 Method invoked = new Method(invocation, model);
 
-                // Excludes delegate and local functions
                 if (invoked.isLocalFunction || invoked.isDelegateFunction)
                 {
+                    // Excludes delegate and local functions
                     continue;
                 }
-
-                // Handles recursive calls. Don't continue analyzing
-                // invoked method if it is equal to `method` or if it is in
-                // `invocations` (which means that it was called recursively)
-                if (invoked.Equals(method))
+                else if (invoked.Equals(method))
                 {
+                    // Handles recursive calls. Don't continue analyzing
+                    // invoked method if it is equal to `method`
                     continue;
                 }
-
-                if (!result.Contains(invoked))
-                {
-                    result.Add(invoked);
-                }
+                else result.Push(invoked);
             }
-            return result;
+            return result.Distinct();
         }
 
         /// <summary>
@@ -805,7 +804,7 @@ namespace CsPurity
         /// <returns>
         /// All methods in <paramref name="workingSet"/> are marked `Impure`
         /// </returns>
-        public List<Method> GetAllImpureMethods(List<Method> workingSet)
+        public IEnumerable<Method> GetAllImpureMethods(List<Method> workingSet)
         {
             List<Method> impureMethods = new List<Method>();
             foreach (var method in workingSet)
@@ -818,7 +817,7 @@ namespace CsPurity
             return impureMethods;
         }
 
-        public List<Method> GetCallers(Method method)
+        public IEnumerable<Method> GetCallers(Method method)
         {
             List<Method> result = new List<Method>();
             foreach (var row in table.AsEnumerable())
