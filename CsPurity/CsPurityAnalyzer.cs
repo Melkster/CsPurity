@@ -303,7 +303,6 @@ namespace CsPurity
             return false;
         }
 
-
         /// <summary>
         /// Checks if the methods contains an identifier with an unknown
         /// implementation.
@@ -512,7 +511,7 @@ namespace CsPurity
             watch.Stop();
             var minutes = watch.Elapsed.Minutes;
             var seconds = watch.Elapsed.Seconds;
-            WriteLine($"Time taken: {minutes} min, {seconds} sec");
+            WriteLine($"\nTime taken: {minutes} min, {seconds} sec");
         }
     }
 
@@ -764,7 +763,6 @@ namespace CsPurity
             return (Purity)GetMethodRow(method)["purity"];
         }
 
-
         /// <summary>
         /// Sets the purity of <paramref name="method"/> to <paramref
         /// name="purity"/> if <paramref name="purity"/> is less pure than
@@ -889,7 +887,6 @@ namespace CsPurity
             return table.Rows.Count;
         }
 
-
         /// <summary>
         /// Counts the number of methods in the lookup table with the attribute
         /// [Pure], or without the [Pure] attribute.
@@ -928,6 +925,26 @@ namespace CsPurity
                 .Count();
         }
 
+        public IEnumerable<Method> GetMethodsWithPurity(Purity purity, bool hasPureAttribute)
+        {
+            return GetMethodsWithPurity(new Purity[] { purity }, hasPureAttribute);
+        }
+
+        public IEnumerable<Method> GetMethodsWithPurity(Purity[] purities, bool hasPureAttribute)
+        {
+            return table.AsEnumerable().Where(row =>
+            {
+                bool hasPurity = purities.Contains(row.Field<Purity>("purity"));
+                bool methodHasPureAttribute = row.Field<Method>("identifier")
+                    .HasPureAttribute();
+
+                return hasPurity && (
+                    methodHasPureAttribute && hasPureAttribute ||
+                    !methodHasPureAttribute && !hasPureAttribute
+                );
+            }).Select(r => r.Field<Method>("identifier"));
+        }
+
         /// <summary>
         /// Counts the number of methods with a given purity level and only
         /// those either with, or without the [Pure] attribute.
@@ -945,17 +962,12 @@ namespace CsPurity
         /// </returns>
         public int CountMethodsWithPurity(Purity purity, bool hasPureAttribute)
         {
-            return table.AsEnumerable().Where(row =>
-            {
-                bool hasPurity = row.Field<Purity>("purity") == purity;
-                bool methodHasPureAttribute = row.Field<Method>("identifier")
-                    .HasPureAttribute();
+            return GetMethodsWithPurity(purity, hasPureAttribute).Count();
+        }
 
-                return hasPurity && (
-                    methodHasPureAttribute && hasPureAttribute ||
-                    !methodHasPureAttribute && !hasPureAttribute
-                );
-            }).Count();
+        public int CountMethodsWithPurity(Purity[] purities, bool hasPureAttribute)
+        {
+            return GetMethodsWithPurity(purities, hasPureAttribute).Count();
         }
 
         public int CountFalsePositives()
@@ -965,7 +977,10 @@ namespace CsPurity
 
         public int CountFalseNegatives()
         {
-            return CountMethodsWithPurity(Purity.Impure, true);
+            return CountMethodsWithPurity(
+                new Purity[] { Purity.Impure, Purity.ImpureThrowsException },
+                true
+            );
         }
 
         /// <summary>
@@ -978,9 +993,40 @@ namespace CsPurity
                 + CountMethodsWithPurity(Purity.ImpureThrowsException);
             double pures = CountMethodsWithPurity(Purity.Pure);
             double unknowns = CountMethodsWithPurity(Purity.Unknown);
-            WriteLine(
-                $"Impure: {impures}/{methodsCount}, Pure: {pures}/{methodsCount}, Unknown: {unknowns}/{methodsCount}"
+
+            int falseNegativesExceptionCount = CountMethodsWithPurity(Purity.ImpureThrowsException, true);
+            int falseNegativesOtherCount = CountMethodsWithPurity(Purity.Impure, true);
+            var falseNegatives = GetMethodsWithPurity(
+                new Purity[] { Purity.Impure, Purity.ImpureThrowsException }, true
             );
+            var falsePositives = GetMethodsWithPurity(
+                new Purity[] { Purity.Pure }, false
+            );
+
+            string result = (
+                $"Impure: {impures}/{methodsCount}, Pure: {pures}/" +
+                $"{methodsCount}, Unknown: {unknowns}/{methodsCount}\n\n" +
+
+                $"These methods were classified as impure (false negatives):\n\n" +
+
+                string.Join("\n", falseNegatives.Select(m => "  " + m)) + $"\n\n" +
+
+                $"  Amount: {CountFalseNegatives()}\n" +
+                $"   - Throw exception: {falseNegativesExceptionCount}\n" +
+                $"   - Other: {falseNegativesOtherCount}\n\n" +
+
+                $"These methods were classified as pure (false positives):\n\n" +
+
+                string.Join("\n", falsePositives.Select(m => "  " + m)) + $"\n\n" +
+
+                $"  Amount: {CountFalsePositives()}"
+            );
+            WriteLine(result);
+        }
+
+        public static string FormatListLinewise<T>(IEnumerable<T> items)
+        {
+            return string.Join("\n", items);
         }
 
         /// <summary>
