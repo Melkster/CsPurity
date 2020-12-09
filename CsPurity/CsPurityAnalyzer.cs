@@ -390,10 +390,11 @@ namespace CsPurity
             WriteLine("Method purity ratios:");
             if (pureAttributesOnly)
             {
-                lt.PrintPurityRatiosPureAttributesOnly();
+                WriteLine(lt.GetPurityRatiosPureAttributesOnly());
             } else
             {
-                lt.PrintPurityRatios();
+                WriteLine(lt.GetPurityRatios());
+                WriteLine(lt.GetFalsePositivesAndNegatives());
             }
         }
 
@@ -984,9 +985,12 @@ namespace CsPurity
         }
 
         /// <summary>
-        /// Prints purity ratios.
+        /// Formats purity ratios into a string.
         /// </summary>
-        public void PrintPurityRatios()
+        /// <returns>
+        /// Purity ratios formatted into a string.
+        /// </returns>
+        public string GetPurityRatios()
         {
             int methodsCount = CountMethods();
             double impures = CountMethodsWithPurity(Purity.Impure)
@@ -994,8 +998,14 @@ namespace CsPurity
             double pures = CountMethodsWithPurity(Purity.Pure);
             double unknowns = CountMethodsWithPurity(Purity.Unknown);
 
-            int falseNegativesExceptionCount = CountMethodsWithPurity(Purity.ImpureThrowsException, true);
-            int falseNegativesOtherCount = CountMethodsWithPurity(Purity.Impure, true);
+            return $"Impure: {impures}/{methodsCount}, Pure: {pures}/" +
+                $"{methodsCount}, Unknown: {unknowns}/{methodsCount}";
+        }
+
+        public string GetFalsePositivesAndNegatives()
+        {
+            int throwExceptionCount = CountMethodsWithPurity(Purity.ImpureThrowsException, true);
+            int otherImpuresCount = CountMethodsWithPurity(Purity.Impure, true);
             var falseNegatives = GetMethodsWithPurity(
                 new Purity[] { Purity.Impure, Purity.ImpureThrowsException }, true
             );
@@ -1003,25 +1013,20 @@ namespace CsPurity
                 new Purity[] { Purity.Pure }, false
             );
 
-            string result = (
-                $"Impure: {impures}/{methodsCount}, Pure: {pures}/" +
-                $"{methodsCount}, Unknown: {unknowns}/{methodsCount}\n\n" +
-
+            return "\n" +
                 $"These methods were classified as impure (false negatives):\n\n" +
 
                 string.Join("\n", falseNegatives.Select(m => "  " + m)) + $"\n\n" +
 
                 $"  Amount: {CountFalseNegatives()}\n" +
-                $"   - Throw exception: {falseNegativesExceptionCount}\n" +
-                $"   - Other: {falseNegativesOtherCount}\n\n" +
+                $"   - Throw exception: {throwExceptionCount}\n" +
+                $"   - Other: {otherImpuresCount}\n\n" +
 
                 $"These methods were classified as pure (false positives):\n\n" +
 
                 string.Join("\n", falsePositives.Select(m => "  " + m)) + $"\n\n" +
 
-                $"  Amount: {CountFalsePositives()}"
-            );
-            WriteLine(result);
+                $"  Amount: {CountFalsePositives()}";
         }
 
         public static string FormatListLinewise<T>(IEnumerable<T> items)
@@ -1030,19 +1035,22 @@ namespace CsPurity
         }
 
         /// <summary>
-        /// Prints purity ratios including only methods with the [Pure]
-        /// attribute.
+        /// Formats purity ratios into a string, including only methods with
+        /// the [Pure] attribute.
         /// </summary>
-        public void PrintPurityRatiosPureAttributesOnly()
+        /// <returns>
+        /// Purity ratios formatted into a string, including only methods with
+        /// the [Pure] attribute.
+        /// </returns>
+        public string GetPurityRatiosPureAttributesOnly()
         {
             int methodsCount = CountMethods(true);
             double impures = CountMethodsWithPurity(Purity.Impure, true)
                 + CountMethodsWithPurity(Purity.ImpureThrowsException, true);
             double pures = CountMethodsWithPurity(Purity.Pure, true);
             double unknowns = CountMethodsWithPurity(Purity.Unknown, true);
-            WriteLine(
-                $"Impure: {impures}/{methodsCount}, Pure: {pures}/{methodsCount}, Unknown: {unknowns}/{methodsCount}"
-            );
+            return $"Impure: {impures}/{methodsCount}, Pure: " +
+                $"{pures}/{methodsCount}, Unknown: {unknowns}/{methodsCount}";
         }
 
         public override string ToString()
