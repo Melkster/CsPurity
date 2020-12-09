@@ -861,27 +861,6 @@ namespace CsPurity
             return result;
         }
 
-        /// <summary>
-        /// Removes all interface methods from the lookup table, i.e. methods
-        /// declared in interfaces which therefore lack implementation.
-        /// </summary>
-        /// <returns>A lookup table stripped of all interface methods.</returns>
-        public LookupTable StripInterfaceMethods()
-        {
-            LookupTable result = Copy();
-            List<Method> interfaceMethods = result
-                .table
-                .AsEnumerable()
-                .Where(row => row.Field<Method>("identifier").IsInterfaceMethod())
-                .Select(row => row.Field<Method>("identifier"))
-                .ToList();
-            foreach (Method method in interfaceMethods)
-            {
-                result.RemoveMethod(method);
-            }
-            return result;
-        }
-
         public int CountMethods()
         {
             return table.Rows.Count;
@@ -925,26 +904,6 @@ namespace CsPurity
                 .Count();
         }
 
-        public IEnumerable<Method> GetMethodsWithPurity(Purity purity, bool hasPureAttribute)
-        {
-            return GetMethodsWithPurity(new Purity[] { purity }, hasPureAttribute);
-        }
-
-        public IEnumerable<Method> GetMethodsWithPurity(Purity[] purities, bool hasPureAttribute)
-        {
-            return table.AsEnumerable().Where(row =>
-            {
-                bool hasPurity = purities.Contains(row.Field<Purity>("purity"));
-                bool methodHasPureAttribute = row.Field<Method>("identifier")
-                    .HasPureAttribute();
-
-                return hasPurity && (
-                    methodHasPureAttribute && hasPureAttribute ||
-                    !methodHasPureAttribute && !hasPureAttribute
-                );
-            }).Select(r => r.Field<Method>("identifier"));
-        }
-
         /// <summary>
         /// Counts the number of methods with a given purity level and only
         /// those either with, or without the [Pure] attribute.
@@ -981,6 +940,47 @@ namespace CsPurity
                 new Purity[] { Purity.Impure, Purity.ImpureThrowsException },
                 true
             );
+        }
+
+        public IEnumerable<Method> GetMethodsWithPurity(Purity purity, bool hasPureAttribute)
+        {
+            return GetMethodsWithPurity(new Purity[] { purity }, hasPureAttribute);
+        }
+
+        public IEnumerable<Method> GetMethodsWithPurity(Purity[] purities, bool hasPureAttribute)
+        {
+            return table.AsEnumerable().Where(row =>
+            {
+                bool hasPurity = purities.Contains(row.Field<Purity>("purity"));
+                bool methodHasPureAttribute = row.Field<Method>("identifier")
+                    .HasPureAttribute();
+
+                return hasPurity && (
+                    methodHasPureAttribute && hasPureAttribute ||
+                    !methodHasPureAttribute && !hasPureAttribute
+                );
+            }).Select(r => r.Field<Method>("identifier"));
+        }
+
+        /// <summary>
+        /// Removes all interface methods from the lookup table, i.e. methods
+        /// declared in interfaces which therefore lack implementation.
+        /// </summary>
+        /// <returns>A lookup table stripped of all interface methods.</returns>
+        public LookupTable StripInterfaceMethods()
+        {
+            LookupTable result = Copy();
+            List<Method> interfaceMethods = result
+                .table
+                .AsEnumerable()
+                .Where(row => row.Field<Method>("identifier").IsInterfaceMethod())
+                .Select(row => row.Field<Method>("identifier"))
+                .ToList();
+            foreach (Method method in interfaceMethods)
+            {
+                result.RemoveMethod(method);
+            }
+            return result;
         }
 
         /// <summary>

@@ -1979,7 +1979,7 @@ namespace CsPurityTests
             var result = lookupTable.GetCallers(bazDeclaration);
             var expected = new List<Method> { fooDeclaration, barDeclaration };
             Assert.IsTrue(HelpMethods.HaveEqualElements(result, expected));
-            Assert.IsTrue(lookupTable.GetCallers(fozDeclaration).Count == 0);
+            Assert.IsTrue(lookupTable.GetCallers(fozDeclaration).Count() == 0);
 
             result = lookupTable.GetCallers(barDeclaration);
             expected = new List<Method> { fooDeclaration };
