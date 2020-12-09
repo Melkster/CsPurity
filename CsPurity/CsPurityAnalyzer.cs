@@ -303,7 +303,6 @@ namespace CsPurity
             return false;
         }
 
-
         /// <summary>
         /// Checks if the methods contains an identifier with an unknown
         /// implementation.
@@ -391,10 +390,11 @@ namespace CsPurity
             WriteLine("Method purity ratios:");
             if (pureAttributesOnly)
             {
-                lt.PrintPurityRatiosPureAttributesOnly();
+                WriteLine(lt.GetPurityRatiosPureAttributesOnly());
             } else
             {
-                lt.PrintPurityRatios();
+                WriteLine(lt.GetPurityRatios());
+                WriteLine(lt.GetFalsePositivesAndNegatives());
             }
         }
 
@@ -422,6 +422,7 @@ namespace CsPurity
                 "--pure-attribute"
             };
             IEnumerable<string> unrecognizedFlags = args
+                .Where(a => a.Length > 2)
                 .Where(a => a.Substring(2) == "--")
                 .Where(a => !validFlags.Contains(a));
 
@@ -511,7 +512,7 @@ namespace CsPurity
             watch.Stop();
             var minutes = watch.Elapsed.Minutes;
             var seconds = watch.Elapsed.Seconds;
-            WriteLine($"Time taken: {minutes} min, {seconds} sec");
+            WriteLine($"\nTime taken: {minutes} min, {seconds} sec");
         }
     }
 
@@ -524,7 +525,7 @@ namespace CsPurity
         public LookupTable()
         {
             table.Columns.Add("identifier", typeof(Method));
-            table.Columns.Add("dependencies", typeof(List<Method>));
+            table.Columns.Add("dependencies", typeof(IEnumerable<Method>));
             table.Columns.Add("purity", typeof(Purity));
         }
 
@@ -570,9 +571,9 @@ namespace CsPurity
                     // MethodDeclarationSyntaxes
                     if (!method.IsInterfaceMethod())
                     {
-                        AddMethod(method);
                         WriteLine($"Calculating dependencies for {method}.");
                         var dependencies = CalculateDependencies(method);
+                        AddMethod(method);
                         foreach (var dependency in dependencies)
                         {
                             AddDependency(method, dependency);
@@ -584,9 +585,9 @@ namespace CsPurity
 
         // This method is private since dependencies get removed after
         // calculating purities. See method CalculateDependencies().
-        private List<Method> GetDependencies(Method method)
+        private IEnumerable<Method> GetDependencies(Method method)
         {
-            return (List<Method>)GetMethodRow(method)["dependencies"];
+            return GetMethodRow(method).Field<IEnumerable<Method>>("dependencies");
         }
 
         /// <summary>
@@ -601,10 +602,15 @@ namespace CsPurity
         /// A list of all unique Methods that <paramref name="method"/>
         /// depends on.
         /// </returns>
-        public List<Method> CalculateDependencies(Method method)
+        public IEnumerable<Method> CalculateDependencies(Method method)
         {
-            List<Method> result = new List<Method>();
+            // If the dependencies have already been computed, return them
+            if (HasMethod(method) && GetDependencies(method).Any())
+            {
+                return GetDependencies(method);
+            }
 
+            Stack<Method> result = new Stack<Method>();
             SemanticModel model = Analyzer.GetSemanticModel(
                 trees,
                 method.GetRoot().SyntaxTree
@@ -637,30 +643,24 @@ namespace CsPurity
                 method.GetRoot().SyntaxTree
             );
 
-            foreach (var invocation in methodInvocations)
+            foreach (var invocation in methodInvocations.Distinct())
             {
                 Method invoked = new Method(invocation, model);
 
-                // Excludes delegate and local functions
                 if (invoked.isLocalFunction || invoked.isDelegateFunction)
                 {
+                    // Excludes delegate and local functions
                     continue;
                 }
-
-                // Handles recursive calls. Don't continue analyzing
-                // invoked method if it is equal to `method` or if it is in
-                // `invocations` (which means that it was called recursively)
-                if (invoked.Equals(method))
+                else if (invoked.Equals(method))
                 {
+                    // Handles recursive calls. Don't continue analyzing
+                    // invoked method if it is equal to `method`
                     continue;
                 }
-
-                if (!result.Contains(invoked))
-                {
-                    result.Add(invoked);
-                }
+                else result.Push(invoked);
             }
-            return result;
+            return result.Distinct();
         }
 
         /// <summary>
@@ -764,7 +764,6 @@ namespace CsPurity
             return (Purity)GetMethodRow(method)["purity"];
         }
 
-
         /// <summary>
         /// Sets the purity of <paramref name="method"/> to <paramref
         /// name="purity"/> if <paramref name="purity"/> is less pure than
@@ -804,7 +803,7 @@ namespace CsPurity
         /// <returns>
         /// All methods in <paramref name="workingSet"/> are marked `Impure`
         /// </returns>
-        public List<Method> GetAllImpureMethods(List<Method> workingSet)
+        public IEnumerable<Method> GetAllImpureMethods(List<Method> workingSet)
         {
             List<Method> impureMethods = new List<Method>();
             foreach (var method in workingSet)
@@ -817,7 +816,7 @@ namespace CsPurity
             return impureMethods;
         }
 
-        public List<Method> GetCallers(Method method)
+        public IEnumerable<Method> GetCallers(Method method)
         {
             List<Method> result = new List<Method>();
             foreach (var row in table.AsEnumerable())
@@ -863,6 +862,107 @@ namespace CsPurity
             return result;
         }
 
+        public int CountMethods()
+        {
+            return table.Rows.Count;
+        }
+
+        /// <summary>
+        /// Counts the number of methods in the lookup table with the attribute
+        /// [Pure], or without the [Pure] attribute.
+        /// </summary>
+        /// <param name="havePureAttribute">
+        /// Determines if the methods should have the [Pure] attribute or not
+        /// </param>
+        /// <returns>
+        /// The number of methods with the [Pure] attribute, if <paramref
+        /// name="havePureAttribute"/> is true, otherwise the number of methods
+        /// without the [Pure] attribute.
+        /// </returns>
+        public int CountMethods(bool havePureAttribute)
+        {
+            return table.AsEnumerable().Where(row =>
+            {
+                Method method = row.Field<Method>("identifier");
+                return method.HasPureAttribute() && havePureAttribute ||
+                    !method.HasPureAttribute() && !havePureAttribute;
+            }).Count();
+        }
+
+        /// <summary>
+        /// Counts the number of methods with a given purity level.
+        /// </summary>
+        /// <param name="purity">The purity level</param>
+        /// <returns>
+        /// The number of methods with the purity level <paramref
+        /// name="purity"/>.
+        /// </returns>
+        public int CountMethodsWithPurity(Purity purity)
+        {
+            return table
+                .AsEnumerable()
+                .Where(row => row.Field<Purity>("purity") == (purity))
+                .Count();
+        }
+
+        /// <summary>
+        /// Counts the number of methods with a given purity level and only
+        /// those either with, or without the [Pure] attribute.
+        /// </summary>
+        /// <param name="purity">The purity level</param>
+        /// <param name="hasPureAttribute">
+        /// Determines if the methods should have the [Pure] attribute or not
+        /// </param>
+        /// <returns>
+        /// The number of methods with the purity level <paramref
+        /// name="purity"/> and the [Pure] attribute if <paramref
+        /// name="hasPureAttribute"/> is true, otherwise the number of methods
+        /// with the purity level <paramref name="purity"/> but with no [Pure]
+        /// attribute.
+        /// </returns>
+        public int CountMethodsWithPurity(Purity purity, bool hasPureAttribute)
+        {
+            return GetMethodsWithPurity(purity, hasPureAttribute).Count();
+        }
+
+        public int CountMethodsWithPurity(Purity[] purities, bool hasPureAttribute)
+        {
+            return GetMethodsWithPurity(purities, hasPureAttribute).Count();
+        }
+
+        public int CountFalsePositives()
+        {
+            return CountMethodsWithPurity(Purity.Pure, false);
+        }
+
+        public int CountFalseNegatives()
+        {
+            return CountMethodsWithPurity(
+                new Purity[] { Purity.Impure, Purity.ImpureThrowsException },
+                true
+            );
+        }
+
+        public IEnumerable<Method> GetMethodsWithPurity(Purity purity, bool hasPureAttribute)
+        {
+            return GetMethodsWithPurity(new Purity[] { purity }, hasPureAttribute);
+        }
+
+        public IEnumerable<Method> GetMethodsWithPurity(Purity[] purities, bool hasPureAttribute)
+        {
+            return table.AsEnumerable().Where(row =>
+            {
+                bool hasPurity = purities.Contains(row.Field<Purity>("purity"));
+                bool methodHasPureAttribute = row.Field<Method>("identifier")
+                    .HasPureAttribute();
+
+                return hasPurity && (
+                    methodHasPureAttribute && hasPureAttribute ||
+                    !methodHasPureAttribute && !hasPureAttribute
+                );
+            }).Select(r => r.Field<Method>("identifier"));
+        }
+
         /// <summary>
         /// Removes all interface methods from the lookup table, i.e. methods
         /// declared in interfaces which therefore lack implementation.
@@ -884,75 +984,73 @@ namespace CsPurity
             return result;
         }
 
-        public int CountMethods()
-        {
-            return table.Rows.Count;
-        }
-
-
         /// <summary>
-        /// Counts the number of methods in the lookup table with the attribute
-        /// [Pure].
+        /// Formats purity ratios into a string.
         /// </summary>
-        /// <returns>The number of methods with the [Pure] attribute.</returns>
-        public int CountMethodsWithPureAttribute()
-        {
-            int sum = 0;
-            foreach (var row in table.AsEnumerable())
-            {
-                Method method = row.Field<Method>("identifier");
-                if (method.HasPureAttribute()) sum++;
-            }
-            return sum;
-        }
-
-        public int CountMethodsWithPurity(Purity purity)
-        {
-            return table
-                .AsEnumerable()
-                .Where(row => (Purity)row["purity"] == (purity))
-                .Count();
-        }
-
-        public int CountMethodsWithPureAttributeAndPurity(Purity purity)
-        {
-            return table
-                .AsEnumerable()
-                .Where(row =>
-                    (Purity)row["purity"] == (purity) &&
-                    ((Method)row["identifier"]).HasPureAttribute()
-                ).Count();
-        }
-
-        /// <summary>
-        /// Prints purity ratios.
-        /// </summary>
-        public void PrintPurityRatios()
+        /// <returns>
+        /// Purity ratios formatted into a string.
+        /// </returns>
+        public string GetPurityRatios()
         {
             int methodsCount = CountMethods();
             double impures = CountMethodsWithPurity(Purity.Impure)
                 + CountMethodsWithPurity(Purity.ImpureThrowsException);
             double pures = CountMethodsWithPurity(Purity.Pure);
             double unknowns = CountMethodsWithPurity(Purity.Unknown);
-            WriteLine(
-                $"Impure: {impures}/{methodsCount}, Pure: {pures}/{methodsCount}, Unknown: {unknowns}/{methodsCount}"
+
+            return $"Impure: {impures}/{methodsCount}, Pure: {pures}/" +
+                $"{methodsCount}, Unknown: {unknowns}/{methodsCount}";
+        }
+
+        public string GetFalsePositivesAndNegatives()
+        {
+            int throwExceptionCount = CountMethodsWithPurity(Purity.ImpureThrowsException, true);
+            int otherImpuresCount = CountMethodsWithPurity(Purity.Impure, true);
+            var falseNegatives = GetMethodsWithPurity(
+                new Purity[] { Purity.Impure, Purity.ImpureThrowsException }, true
             );
+            var falsePositives = GetMethodsWithPurity(
+                new Purity[] { Purity.Pure }, false
+            );
+
+            return "\n" +
+                $"These methods were classified as impure (false negatives):\n\n" +
+
+                string.Join("\n", falseNegatives.Select(m => "  " + m)) + $"\n\n" +
+
+                $"  Amount: {CountFalseNegatives()}\n" +
+                $"   - Throw exception: {throwExceptionCount}\n" +
+                $"   - Other: {otherImpuresCount}\n\n" +
+
+                $"These methods were classified as pure (false positives):\n\n" +
+
+                string.Join("\n", falsePositives.Select(m => "  " + m)) + $"\n\n" +
+
+                $"  Amount: {CountFalsePositives()}";
+        }
+
+        public static string FormatListLinewise<T>(IEnumerable<T> items)
+        {
+            return string.Join("\n", items);
         }
 
         /// <summary>
-        /// Prints purity ratios including only methods with the [Pure]
-        /// attribute.
+        /// Formats purity ratios into a string, including only methods with
+        /// the [Pure] attribute.
         /// </summary>
-        public void PrintPurityRatiosPureAttributesOnly()
+        /// <returns>
+        /// Purity ratios formatted into a string, including only methods with
+        /// the [Pure] attribute.
+        /// </returns>
+        public string GetPurityRatiosPureAttributesOnly()
         {
-            int methodsCount = CountMethodsWithPureAttribute();
-            double impures = CountMethodsWithPureAttributeAndPurity(Purity.Impure)
-                + CountMethodsWithPureAttributeAndPurity(Purity.ImpureThrowsException);
-            double pures = CountMethodsWithPureAttributeAndPurity(Purity.Pure);
-            double unknowns = CountMethodsWithPureAttributeAndPurity(Purity.Unknown);
-            WriteLine(
-                $"Impure: {impures}/{methodsCount}, Pure: {pures}/{methodsCount}, Unknown: {unknowns}/{methodsCount}"
-            );
+            int methodsCount = CountMethods(true);
+            double impures = CountMethodsWithPurity(Purity.Impure, true)
+                + CountMethodsWithPurity(Purity.ImpureThrowsException, true);
+            double pures = CountMethodsWithPurity(Purity.Pure, true);
+            double unknowns = CountMethodsWithPurity(Purity.Unknown, true);
+            return $"Impure: {impures}/{methodsCount}, Pure: " +
+                $"{pures}/{methodsCount}, Unknown: {unknowns}/{methodsCount}";
         }
 
         public override string ToString()
