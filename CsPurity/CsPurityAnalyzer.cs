@@ -510,9 +510,12 @@ namespace CsPurity
             }
 
             watch.Stop();
+            var hours = watch.Elapsed.Hours;
             var minutes = watch.Elapsed.Minutes;
             var seconds = watch.Elapsed.Seconds;
-            WriteLine($"\nTime taken: {minutes} min, {seconds} sec");
+            string hoursText = hours > 0 ? $"{hours} hours, " : "";
+
+            WriteLine($"\nTime taken: {hoursText}{minutes} min, {seconds} sec");
         }
     }
 
@@ -1013,18 +1016,22 @@ namespace CsPurity
                 new Purity[] { Purity.Pure }, false
             );
 
-            return "\n" +
+            string falseNegativesText = falseNegatives.Any() ?
                 $"These methods were classified as impure (false negatives):\n\n" +
+                string.Join("\n", falseNegatives.Select(m => "  " + m)) + $"\n\n"
+                : "False negatives:\n";
+            string falsePositivesText = falsePositives.Any() ?
+                $"These methods were classified as pure (false positives):\n\n" +
+                string.Join("\n", falsePositives.Select(m => "  " + m)) + $"\n\n"
+                : "False positives:\n";
 
-                string.Join("\n", falseNegatives.Select(m => "  " + m)) + $"\n\n" +
+            return "\n" + falseNegativesText +
 
                 $"  Amount: {CountFalseNegatives()}\n" +
-                $"   - Throw exception: {throwExceptionCount}\n" +
+                $"   - Throw exceptions: {throwExceptionCount}\n" +
                 $"   - Other: {otherImpuresCount}\n\n" +
 
-                $"These methods were classified as pure (false positives):\n\n" +
-
-                string.Join("\n", falsePositives.Select(m => "  " + m)) + $"\n\n" +
+                falsePositivesText +
 
                 $"  Amount: {CountFalsePositives()}";
         }
@@ -1298,6 +1305,8 @@ namespace CsPurity
         {
             if (!HasKnownDeclaration()) return identifier;
 
+            string returnType = declaration.ReturnType.ToString();
+            string methodName = declaration.Identifier.Text;
             var classAncestors = declaration
                 .Ancestors()
                 .OfType<ClassDeclarationSyntax>();
@@ -1306,8 +1315,6 @@ namespace CsPurity
             {
                 SyntaxToken classIdentifier = classAncestors.First().Identifier;
                 string className = classIdentifier.Text;
-                string returnType = declaration.ReturnType.ToString();
-                string methodName = declaration.Identifier.Text;
                 string pureAttribute = HasPureAttribute() ? "[Pure] " : "";
                 return $"{pureAttribute}{returnType} {className}.{methodName}";
             }
@@ -1320,13 +1327,13 @@ namespace CsPurity
 
             if (structAncestors.Any())
             {
-                SyntaxToken structIdentifier = structAncestors.First().Identifier;
-                string structName = structIdentifier.Text;
-                string returnType = declaration.ReturnType.ToString();
-                string methodName = declaration.Identifier.Text;
+                string structName = structAncestors.First().Identifier.Text;
                 return $"(struct) {returnType} {structName}.{methodName}";
             }
-            return "*no identifier found*";
+            else
+            {
+                return $"{returnType} *no class/identifier* {methodName}";
+            }
         }
     }
 
