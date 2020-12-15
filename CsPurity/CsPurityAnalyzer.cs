@@ -74,7 +74,7 @@ namespace CsPurity
             ("List.Dispose()",                      Purity.Pure),
         };
 
-        public Analyzer(List<string> files)
+        public Analyzer(IEnumerable<string> files)
         {
             var trees = files.Select(f => CSharpSyntaxTree.ParseText(f)).ToList();
             lookupTable = new LookupTable(trees);
@@ -89,7 +89,7 @@ namespace CsPurity
         /// <returns>A LookupTable containing each method in <paramref
         /// name="file"/>, its dependency set as well as its purity level
         /// </returns>
-        public static LookupTable Analyze(List<string> files)
+        public static LookupTable Analyze(IEnumerable<string> files)
         {
             Analyzer analyzer = new Analyzer(files);
             LookupTable table = analyzer.lookupTable;
@@ -206,7 +206,7 @@ namespace CsPurity
         /// representing all files making up the program to analyze </param>
         /// <param name="tree">The </param>
         /// <returns></returns>
-        public static SemanticModel GetSemanticModel(List<SyntaxTree> trees, SyntaxTree tree)
+        public static SemanticModel GetSemanticModel(IEnumerable<SyntaxTree> trees, SyntaxTree tree)
         {
             return CSharpCompilation
                 .Create("AnalysisModel")
@@ -376,12 +376,12 @@ namespace CsPurity
             return throws.Any();
         }
 
-        public static void AnalyzeAndPrint(List<string> files)
+        public static void AnalyzeAndPrint(IEnumerable<string> files)
         {
             AnalyzeAndPrint(files, false);
         }
 
-        public static void AnalyzeAndPrint(List<string> files, bool pureAttributesOnly)
+        public static void AnalyzeAndPrint(IEnumerable<string> files, bool pureAttributesOnly)
         {
             LookupTable lt = Analyze(files)
                 .StripMethodsNotDeclaredInAnalyzedFiles()
@@ -470,9 +470,9 @@ namespace CsPurity
                 try
                 {
                     int flagIndex = Array.IndexOf(args, "--files") + 1;
-                    List<string> files = args.Skip(flagIndex).Select(
+                    IEnumerable<string> files = args.Skip(flagIndex).Select(
                         a => File.ReadAllText(a)
-                    ).ToList();
+                    );
 
                     AnalyzeAndPrint(files, pureAttributesOnly);
                 }
@@ -490,11 +490,11 @@ namespace CsPurity
             {
                 try
                 {
-                    List<string> files = Directory.GetFiles(
+                    IEnumerable<string> files = Directory.GetFiles(
                         args[0],
                         "*.cs",
                         SearchOption.AllDirectories
-                    ).Select(a => File.ReadAllText(a)).ToList();
+                    ).Select(a => File.ReadAllText(a));
 
                     AnalyzeAndPrint(files, pureAttributesOnly);
                 }
@@ -524,7 +524,7 @@ namespace CsPurity
     {
         public DataTable table = new DataTable();
         public WorkingSet workingSet;
-        public readonly List<SyntaxTree> trees;
+        public readonly IEnumerable<SyntaxTree> trees;
 
         public LookupTable()
         {
@@ -533,7 +533,7 @@ namespace CsPurity
             table.Columns.Add("purity", typeof(Purity));
         }
 
-        public LookupTable(List<SyntaxTree> trees) : this()
+        public LookupTable(IEnumerable<SyntaxTree> trees) : this()
         {
             this.trees = trees;
 
@@ -714,7 +714,7 @@ namespace CsPurity
                 .AsEnumerable()
                 .Any(row =>
                     row["identifier"].Equals(method) &&
-                    row.Field<List<Method>>("dependencies").Contains(dependsOn)
+                    row.Field<IEnumerable<Method>>("dependencies").Contains(dependsOn)
                 );
         }
 
@@ -793,39 +793,23 @@ namespace CsPurity
         }
 
         /// <summary>
-        /// Gets all methods in the working set that are marked `Impure` in the
-        /// lookup table.
+        /// Gets all methods from a list that are marked `Impure` in the lookup
+        /// table.
         /// </summary>
-        /// <param name="workingSet">The working set</param>
+        /// <param name="methods">The list of methods</param>
         /// <returns>
-        /// All methods in <paramref name="workingSet"/> are marked `Impure`
+        /// All methods in <paramref name="methods"/> are marked `Impure`
         /// </returns>
-        public IEnumerable<Method> GetAllImpureMethods(List<Method> workingSet)
+        public IEnumerable<Method> GetAllImpureMethods(IEnumerable<Method> methods)
         {
-            List<Method> impureMethods = new List<Method>();
-            foreach (var method in workingSet)
-            {
-                if (GetPurity(method).Equals(Purity.Impure))
-                {
-                    impureMethods.Add(method);
-                }
-            }
-            return impureMethods;
+            return methods.Where(m => GetPurity(m).Equals(Purity.Impure));
         }
 
         public IEnumerable<Method> GetCallers(Method method)
         {
-            List<Method> result = new List<Method>();
-            foreach (var row in table.AsEnumerable())
-            {
-                List<Method> dependencies = row
-                    .Field<List<Method>>("dependencies");
-                if (dependencies.Contains(method))
-                {
-                    result.Add(row.Field<Method>("identifier"));
-                }
-            }
-            return result;
+            return table.AsEnumerable().Where(
+                r => r.Field<IEnumerable<Method>>("dependencies").Contains(method)
+            ).Select(r => r.Field<Method>("identifier"));
         }
 
         /// <summary>
@@ -968,12 +952,11 @@ namespace CsPurity
         public LookupTable StripInterfaceMethods()
         {
             LookupTable result = Copy();
-            List<Method> interfaceMethods = result
+            IEnumerable<Method> interfaceMethods = result
                 .table
                 .AsEnumerable()
                 .Where(row => row.Field<Method>("identifier").IsInterfaceMethod())
-                .Select(row => row.Field<Method>("identifier"))
-                .ToList();
+                .Select(row => row.Field<Method>("identifier"));
             foreach (Method method in interfaceMethods)
             {
                 result.RemoveMethod(method);
@@ -1065,7 +1048,7 @@ namespace CsPurity
                     {
                         result += method;
                     }
-                    else if (item is List<Method> methods)
+                    else if (item is IEnumerable<Method> methods)
                     {
                         List<string> resultList = new List<string>();
                         var dependencies = methods;
@@ -1360,7 +1343,7 @@ namespace CsPurity
             foreach (var row in lookupTable.table.AsEnumerable())
             {
                 Method identifier = row.Field<Method>("identifier");
-                List<Method> dependencies = row.Field<List<Method>>("dependencies");
+                IEnumerable<Method> dependencies = row.Field<IEnumerable<Method>>("dependencies");
                 if (!dependencies.Any() && !history.Contains(identifier))
                 {
                     Add(identifier);
