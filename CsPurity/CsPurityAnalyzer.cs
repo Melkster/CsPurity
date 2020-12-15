@@ -502,12 +502,11 @@ namespace CsPurity
                 {
                     WriteLine(err.Message);
                 }
-                // TODO: remove comments here
-                // catch (Exception err)
-                // {
-                //     WriteLine($"Something went wrong when reading the file(s)" +
-                //         $":\n\n{err.Message}");
-                // }
+                catch (Exception err)
+                {
+                    WriteLine($"Something went wrong when reading the file(s)" +
+                        $":\n\n{err.Message}");
+                }
             }
 
             watch.Stop();
