@@ -2324,33 +2324,5 @@ namespace CsPurityTests
                 HelpMethods.GetMethodDeclaration("bar", root)
             );
         }
-
-        // This test does not fully reflect the problem with implicit operators
-        // TODO: remove this test
-        [TestMethod]
-        public void TestImplicitOperator()
-        {
-            string file = (@"
-                using System.IO;
-
-                namespace TestFile
-                {
-                    class C1
-                    {
-                        public static void bar()
-                        {
-                            // implicit conversion from C1 to int
-                            C1 foo = File.GetLastWriteTime(""foo"");
-                        }
-
-                        public static implicit operator C1(DateTime dateTime)
-                        {
-                            return new C1();
-                        }
-                    }
-                }
-            ");
-            LookupTable lt = Analyzer.Analyze(file);
-        }
     }
 }

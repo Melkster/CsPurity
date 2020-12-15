@@ -103,7 +103,6 @@ namespace CsPurity
 
                 foreach (var method in workingSet)
                 {
-                    if (method.ToString() == "void FileChangeNotificationSystem.StartMonitoring") ;
                     // Perform purity checks:
 
                     Purity currentPurity = table.GetPurity(method);
@@ -503,6 +502,7 @@ namespace CsPurity
                 {
                     WriteLine(err.Message);
                 }
+                // TODO: remove comments here
                 // catch (Exception err)
                 // {
                 //     WriteLine($"Something went wrong when reading the file(s)" +
@@ -569,10 +569,6 @@ namespace CsPurity
                     .OfType<MethodDeclarationSyntax>();
                 foreach (var methodDeclaration in methodDeclarations)
                 {
-                    // if (methodDeclaration.Identifier.Text != "StartMonitoring") {
-                    //     WriteLine(methodDeclaration.Identifier.Text);
-                    //     continue;
-                    // }
                     Method method = new Method(methodDeclaration);
 
                     // Ignore interface methods which also show up as
@@ -612,7 +608,6 @@ namespace CsPurity
         /// </returns>
         public IEnumerable<Method> CalculateDependencies(Method method)
         {
-            if (method.ToString() == "void FileChangeNotificationSystem.StartMonitoring") ;
             // If the dependencies have already been computed, return them
             if (HasMethod(method) && GetDependencies(method).Any())
             {
@@ -624,13 +619,6 @@ namespace CsPurity
                 trees,
                 method.GetRoot().SyntaxTree
             );
-
-            // If the method is a delegate or local function we simply
-            // ignore it
-            // if (method.isDelegateFunction || method.isLocalFunction)
-            // {
-            //     return result;
-            // }
 
             // If the method doesn't have a known declaration we cannot
             // calculate its dependencies, and so we ignore it
@@ -654,8 +642,7 @@ namespace CsPurity
 
             foreach (var invocation in methodInvocations.Distinct())
             {
-                if (invocation.ToString() == "File.GetLastWriteTime(filePath)") { }
-                Method invoked = new Method(invocation, model); // <--
+                Method invoked = new Method(invocation, model);
 
                 if (invoked.isLocalFunction || invoked.isDelegateFunction)
                 {
@@ -670,7 +657,6 @@ namespace CsPurity
                 }
                 else result.Push(invoked);
             }
-            if (method.ToString() == "void FileChangeNotificationSystem.StartMonitoring") { }
             return result.Distinct();
         }
 
@@ -1173,7 +1159,6 @@ namespace CsPurity
         /// <param name="model"></param>
         public Method(InvocationExpressionSyntax methodInvocation, SemanticModel model)
         {
-            if (methodInvocation.ToString() == "File.GetLastWriteTime(filePath)") ;
             ISymbol symbol = model.GetSymbolInfo(methodInvocation).Symbol;
             if (symbol == null)
             {
@@ -1212,8 +1197,6 @@ namespace CsPurity
             }
             else
             {
-                if (declaringReferences.ToString()
-                    == "System.DateTimeOffset.implicit operator System.DateTimeOffset(System.DateTime)") ;
                 // Not sure if this cast from SyntaxNode to
                 // `MethodDeclarationSyntax` always works
                 declaration = (MethodDeclarationSyntax)declaringReferences
