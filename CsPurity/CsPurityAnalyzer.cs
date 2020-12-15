@@ -805,6 +805,13 @@ namespace CsPurity
             return methods.Where(m => GetPurity(m).Equals(Purity.Impure));
         }
 
+        /// <summary>
+        /// Gets all callers to a given method, i.e. that depend on it.
+        /// </summary>
+        /// <param name="method">The method</param>
+        /// <returns>
+        /// All methods that depend on <paramref name="method"/>.
+        /// </returns>
         public IEnumerable<Method> GetCallers(Method method)
         {
             return table.AsEnumerable().Where(
