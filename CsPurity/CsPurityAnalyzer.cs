@@ -103,6 +103,7 @@ namespace CsPurity
 
                 foreach (var method in workingSet)
                 {
+                    if (method.ToString() == "void FileChangeNotificationSystem.StartMonitoring") ;
                     // Perform purity checks:
 
                     Purity currentPurity = table.GetPurity(method);
@@ -502,11 +503,11 @@ namespace CsPurity
                 {
                     WriteLine(err.Message);
                 }
-                catch (Exception err)
-                {
-                    WriteLine($"Something went wrong when reading the file(s)" +
-                        $":\n\n{err.Message}");
-                }
+                // catch (Exception err)
+                // {
+                //     WriteLine($"Something went wrong when reading the file(s)" +
+                //         $":\n\n{err.Message}");
+                // }
             }
 
             watch.Stop();
@@ -568,6 +569,10 @@ namespace CsPurity
                     .OfType<MethodDeclarationSyntax>();
                 foreach (var methodDeclaration in methodDeclarations)
                 {
+                    // if (methodDeclaration.Identifier.Text != "StartMonitoring") {
+                    //     WriteLine(methodDeclaration.Identifier.Text);
+                    //     continue;
+                    // }
                     Method method = new Method(methodDeclaration);
 
                     // Ignore interface methods which also show up as
@@ -607,6 +612,7 @@ namespace CsPurity
         /// </returns>
         public IEnumerable<Method> CalculateDependencies(Method method)
         {
+            if (method.ToString() == "void FileChangeNotificationSystem.StartMonitoring") ;
             // If the dependencies have already been computed, return them
             if (HasMethod(method) && GetDependencies(method).Any())
             {
@@ -621,10 +627,10 @@ namespace CsPurity
 
             // If the method is a delegate or local function we simply
             // ignore it
-            if (method.isDelegateFunction || method.isLocalFunction)
-            {
-                return result;
-            }
+            // if (method.isDelegateFunction || method.isLocalFunction)
+            // {
+            //     return result;
+            // }
 
             // If the method doesn't have a known declaration we cannot
             // calculate its dependencies, and so we ignore it
@@ -648,7 +654,8 @@ namespace CsPurity
 
             foreach (var invocation in methodInvocations.Distinct())
             {
-                Method invoked = new Method(invocation, model);
+                if (invocation.ToString() == "File.GetLastWriteTime(filePath)") { }
+                Method invoked = new Method(invocation, model); // <--
 
                 if (invoked.isLocalFunction || invoked.isDelegateFunction)
                 {
@@ -658,11 +665,12 @@ namespace CsPurity
                 else if (invoked.Equals(method))
                 {
                     // Handles recursive calls. Don't continue analyzing
-                    // invoked method if it is equal to `method`
+                    // invoked method if it is equal to the one being analyzed
                     continue;
                 }
                 else result.Push(invoked);
             }
+            if (method.ToString() == "void FileChangeNotificationSystem.StartMonitoring") { }
             return result.Distinct();
         }
 
@@ -1165,6 +1173,7 @@ namespace CsPurity
         /// <param name="model"></param>
         public Method(InvocationExpressionSyntax methodInvocation, SemanticModel model)
         {
+            if (methodInvocation.ToString() == "File.GetLastWriteTime(filePath)") ;
             ISymbol symbol = model.GetSymbolInfo(methodInvocation).Symbol;
             if (symbol == null)
             {
@@ -1174,6 +1183,7 @@ namespace CsPurity
 
             var declaringReferences = symbol.DeclaringSyntaxReferences;
             var methodSymbol = (IMethodSymbol)symbol;
+
             if (declaringReferences.Length < 1)
             {
                 SetIdentifier(methodInvocation);
@@ -1184,20 +1194,26 @@ namespace CsPurity
                 isLocalFunction = true;
                 identifier = "*local function*";
             }
-            else if (methodSymbol.MethodKind == MethodKind.DelegateInvoke)
+            else if (
+                methodSymbol.MethodKind == MethodKind.DelegateInvoke ||
+                declaringReferences.Single().GetSyntax().Kind() == SyntaxKind.DelegateDeclaration
+            )
             {
-                // Handles delegates
+                // Handles delegates, including the case of the methods
+                // BeginInvoke and EndInvoke
                 identifier = "*delegate invocation";
                 isDelegateFunction = true;
             }
-            else if (declaringReferences.Single().GetSyntax().Kind() == SyntaxKind.DelegateDeclaration)
+            else if (declaringReferences.Single().GetSyntax().Kind() == SyntaxKind.ConversionOperatorDeclaration)
             {
-                // Handles the case of `BeginInvoke` and `EndInvoke`
-                identifier = "*delegate invocation*";
-                isDelegateFunction = true;
+                // Handles the rare case where GetSyntax() returns the operator
+                // for an implicit conversion instead of the invoked method
+                identifier = "*conversion operator*";
             }
             else
             {
+                if (declaringReferences.ToString()
+                    == "System.DateTimeOffset.implicit operator System.DateTimeOffset(System.DateTime)") ;
                 // Not sure if this cast from SyntaxNode to
                 // `MethodDeclarationSyntax` always works
                 declaration = (MethodDeclarationSyntax)declaringReferences
