@@ -490,11 +490,14 @@ namespace CsPurity
             {
                 try
                 {
-                    IEnumerable<string> files = Directory.GetFiles(
-                        args[0],
-                        "*.cs",
-                        SearchOption.AllDirectories
-                    ).Select(a => File.ReadAllText(a));
+                     IEnumerable<string> files = args.Select(arg =>
+                         Directory.GetFiles(
+                            arg,
+                            "*.cs",
+                            SearchOption.AllDirectories
+                        )
+                     ).SelectMany(files => files)
+                     .Select(a => File.ReadAllText(a));
 
                     AnalyzeAndPrint(files, pureAttributesOnly);
                 }
@@ -958,11 +961,12 @@ namespace CsPurity
         public LookupTable StripInterfaceMethods()
         {
             LookupTable result = Copy();
-            IEnumerable<Method> interfaceMethods = result
+            List<Method> interfaceMethods = result
                 .table
                 .AsEnumerable()
                 .Where(row => row.Field<Method>("identifier").IsInterfaceMethod())
-                .Select(row => row.Field<Method>("identifier"));
+                .Select(row => row.Field<Method>("identifier"))
+                .ToList();
             foreach (Method method in interfaceMethods)
             {
                 result.RemoveMethod(method);
