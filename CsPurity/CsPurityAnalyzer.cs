@@ -999,9 +999,7 @@ namespace CsPurity
             var falseNegatives = GetMethodsWithPurity(
                 new Purity[] { Purity.Impure, Purity.ImpureThrowsException }, true
             );
-            var falsePositives = GetMethodsWithPurity(
-                new Purity[] { Purity.Pure }, false
-            );
+            var falsePositives = GetMethodsWithPurity(Purity.Pure, false);
 
             string falseNegativesText = falseNegatives.Any() ?
                 $"These methods were classified as impure (false negatives):\n\n" +
@@ -1320,7 +1318,8 @@ namespace CsPurity
             if (structAncestors.Any())
             {
                 string structName = structAncestors.First().Identifier.Text;
-                return $"(struct) {returnType} {structName}.{methodName}";
+                string pureAttribute = HasPureAttribute() ? "[Pure] " : "";
+                return $"(struct) {pureAttribute}{returnType} {structName}.{methodName}";
             }
             else
             {
