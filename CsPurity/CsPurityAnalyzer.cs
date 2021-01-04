@@ -376,6 +376,34 @@ namespace CsPurity
             return throws.Any();
         }
 
+        static void AnalyzeAndPrintEvaluate(IEnumerable<string> files)
+        {
+            LookupTable lt = Analyze(files)
+                .StripMethodsNotDeclaredInAnalyzedFiles()
+                .StripInterfaceMethods();
+            WriteLine();
+            WriteLine($"Methods with [Pure] attribute:");
+            WriteLine();
+            WriteLine($"  Pure: {lt.CountMethodsWithPurity(Purity.Pure, true)}");
+            WriteLine($"  Impure");
+            WriteLine($"    - Throws exception: " +
+                lt.CountMethodsWithPurity(Purity.ImpureThrowsException, true));
+            WriteLine($"    - Other: {lt.CountMethodsWithPurity(Purity.Impure, true)}");
+            WriteLine($"  Unknown: {lt.CountMethodsWithPurity(Purity.Unknown, true)}");
+            WriteLine($"  Total: {lt.CountMethods(true)}");
+            WriteLine();
+            WriteLine($"Methods without [Pure] attribute:");
+            WriteLine();
+            WriteLine($"  Pure: {lt.CountMethodsWithPurity(Purity.Pure, false)}");
+            WriteLine($"  Impure: " + lt.CountMethodsWithPurity(
+                new Purity[] {Purity.Impure, Purity.ImpureThrowsException}, false)
+            );
+            WriteLine($"  Unknown: {lt.CountMethodsWithPurity(Purity.Unknown, false)}");
+            WriteLine($"  Total: {lt.CountMethods(false)}");
+            WriteLine();
+            WriteLine($"Total number of methods: {lt.CountMethods()}");
+        }
+
         public static void AnalyzeAndPrint(IEnumerable<string> files, bool pureAttributesOnly)
         {
             LookupTable lt = Analyze(files)
@@ -386,24 +414,18 @@ namespace CsPurity
             if (pureAttributesOnly)
             {
                 WriteLine(lt.GetPurityRatiosPureAttributesOnly());
-                WriteLine($"\nMethods marked [Pure]: {lt.CountMethods(true)}");
             }
             else
             {
                 WriteLine(lt.GetPurityRatios());
-                WriteLine($"\nMethods marked [Pure]: {lt.CountMethods(true)}");
                 WriteLine(lt.GetFalsePositivesAndNegatives());
             }
         }
 
-        public static void AnalyzeAndPrint(IEnumerable<string> files)
+        public static void AnalyzeAndPrint(IEnumerable<string> files, bool pureAttributesOnly, bool evaluate)
         {
-            AnalyzeAndPrint(files, false);
-        }
-
-        public static void AnalyzeAndPrint(string file)
-        {
-            AnalyzeAndPrint(file, false);
+            if (evaluate) AnalyzeAndPrintEvaluate(files);
+            else AnalyzeAndPrint(files, pureAttributesOnly);
         }
 
         public static void AnalyzeAndPrint(string file, bool pureAttributesOnly)
@@ -415,6 +437,7 @@ namespace CsPurity
         {
             var watch = Stopwatch.StartNew();
             bool pureAttributesOnly = false;
+            bool evaluate = false;
             List<string> validFlags = new List<string>
             {
                 "--help",
@@ -422,7 +445,8 @@ namespace CsPurity
                 "-h",
                 "--string",
                 "--files",
-                "--pure-attribute"
+                "--pure-attribute",
+                "--evaluate"
             };
             IEnumerable<string> unrecognizedFlags = args
                 .Where(a => a.Length > 2)
@@ -432,6 +456,11 @@ namespace CsPurity
             if (args.Contains("--pure-attribute")) {
                 pureAttributesOnly = true;
                 args = args.Except(new string[] { "--pure-attribute" }).ToArray();
+            }
+
+            if (args.Contains("--evaluate")) {
+                evaluate = true;
+                args = args.Except(new string[] { "--evaluate" }).ToArray();
             }
 
             if (!args.Any())
@@ -451,8 +480,10 @@ namespace CsPurity
 
                     "Options:\n" +
                     "  --string\t\tProvide argument in the form of the content of one C# file as a string.\n" +
-                    "  --files \t\tProvide arguments as the paths to individual files to be analyzed.\n" +
-                    "  --pure-attribute \tOnly output purity of methods that have the [Pure] attribute."
+                    "  --files\t\tProvide arguments as the paths to individual files to be analyzed.\n" +
+                    "  --pure-attribute\tOnly output purity of methods that have the [Pure] attribute.\n" +
+                    "  --evaluate\t\tEvaluate the implementaiton by outputting in terms of true \n" +
+                    "            \t\tand false negatives based on the [Pure] attribute."
                 );
             }
             else if (args.Contains("--string"))
@@ -477,7 +508,7 @@ namespace CsPurity
                         a => File.ReadAllText(a)
                     );
 
-                    AnalyzeAndPrint(files, pureAttributesOnly);
+                    AnalyzeAndPrint(files, pureAttributesOnly, evaluate);
                 }
                 catch (FileNotFoundException err)
                 {
