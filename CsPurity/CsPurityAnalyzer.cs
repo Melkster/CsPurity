@@ -376,11 +376,6 @@ namespace CsPurity
             return throws.Any();
         }
 
-        public static void AnalyzeAndPrint(IEnumerable<string> files)
-        {
-            AnalyzeAndPrint(files, false);
-        }
-
         public static void AnalyzeAndPrint(IEnumerable<string> files, bool pureAttributesOnly)
         {
             LookupTable lt = Analyze(files)
@@ -391,11 +386,19 @@ namespace CsPurity
             if (pureAttributesOnly)
             {
                 WriteLine(lt.GetPurityRatiosPureAttributesOnly());
-            } else
+                WriteLine($"\nMethods marked [Pure]: {lt.CountMethods(true)}");
+            }
+            else
             {
                 WriteLine(lt.GetPurityRatios());
+                WriteLine($"\nMethods marked [Pure]: {lt.CountMethods(true)}");
                 WriteLine(lt.GetFalsePositivesAndNegatives());
             }
+        }
+
+        public static void AnalyzeAndPrint(IEnumerable<string> files)
+        {
+            AnalyzeAndPrint(files, false);
         }
 
         public static void AnalyzeAndPrint(string file)
