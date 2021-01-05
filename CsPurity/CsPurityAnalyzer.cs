@@ -428,9 +428,9 @@ namespace CsPurity
             else AnalyzeAndPrint(files, pureAttributesOnly);
         }
 
-        public static void AnalyzeAndPrint(string file, bool pureAttributesOnly)
+        public static void AnalyzeAndPrint(string file, bool pureAttributesOnly, bool evaluate)
         {
-            AnalyzeAndPrint(new List<string> { file }, pureAttributesOnly);
+            AnalyzeAndPrint(new List<string> { file }, pureAttributesOnly, evaluate);
         }
 
         static void Main(string[] args)
@@ -492,7 +492,7 @@ namespace CsPurity
                 if (flagIndex < args.Length)
                 {
                     string file = args[flagIndex];
-                    AnalyzeAndPrint(file, pureAttributesOnly);
+                    AnalyzeAndPrint(file, pureAttributesOnly, evaluate);
                 }
                 else
                 {
@@ -533,7 +533,7 @@ namespace CsPurity
                      ).SelectMany(files => files)
                      .Select(a => File.ReadAllText(a));
 
-                    AnalyzeAndPrint(files, pureAttributesOnly);
+                    AnalyzeAndPrint(files, pureAttributesOnly, evaluate);
                 }
                 catch (FileNotFoundException err)
                 {
