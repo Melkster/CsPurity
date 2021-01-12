@@ -43,9 +43,6 @@ namespace CsPurity
             ("System.IO.Path.GetRandomFileName",    Purity.Impure),
             ("System.Threading.Thread.Start",       Purity.Impure),
             ("Thread.Abort",                        Purity.Impure),
-            ("Console.Read",                        Purity.Impure),
-            ("Console.ReadLine",                    Purity.Impure),
-            ("Console.ReadKey",                     Purity.Impure),
             ("Console.Write",                       Purity.Impure),
             ("Console.WriteLine",                   Purity.Impure),
             ("System.IO.Directory.Create",          Purity.Impure),
@@ -64,8 +61,6 @@ namespace CsPurity
             ("List.IsCompatibleObject()",           Purity.Pure),
             ("List.Add()",                          Purity.Impure),
             ("List.EnsureCapacity()",               Purity.Impure),
-            ("List.GetEnumerator()",                Purity.Pure),
-            ("List.GetEnumerator()",                Purity.Pure),
             ("List.GetEnumerator()",                Purity.Pure),
             ("List.TrimExcess()",                   Purity.Pure),
             ("List.Synchronized()",                 Purity.Pure),
@@ -542,7 +537,7 @@ namespace CsPurity
                 catch (Exception err)
                 {
                     WriteLine($"Something went wrong when reading the file(s)" +
-                        $":\n\n{err.Message}");
+                        $":\n\n{err}");
                 }
             }
 

@@ -490,6 +490,16 @@ namespace CsPurityTests
         }
 
         [TestMethod]
+        public void TestKnownPuritiesNoDuplicates()
+        {
+            Assert.IsTrue(
+                Analyzer.knownPurities.GroupBy(p => p)
+                   .Where(g => g.Count() > 1)
+                   .Count() == 0
+            );
+        }
+
+        [TestMethod]
         public void TestAnalyzeMultipleFiles()
         {
             var file1 = (@"
