@@ -25,8 +25,12 @@ namespace CsPurity
     public class Analyzer
     {
         readonly public LookupTable lookupTable;
-        // Set this to `true` if enums should be considered to be impure.
+        // Set this to true if enums should be considered to be impure.
         readonly public static bool enumsAreImpure = false;
+        // Set this to true if exceptions should be considered impure. If set
+        // to false this only affects the --evaluate flag. If the program is
+        // not run with --evaluate this toggle will be ignored.
+        public static bool exceptionsAreImpure = true;
 
         // All methods in the knownPurities are those that have an already
         // known purity level.
@@ -71,7 +75,9 @@ namespace CsPurity
 
         public Analyzer(IEnumerable<string> files)
         {
-            var trees = files.Select(f => CSharpSyntaxTree.ParseText(f)).ToList();
+            var trees = files
+                .Select(f => CSharpSyntaxTree.ParseText(f))
+                .ToList();
             lookupTable = new LookupTable(trees);
         }
 
@@ -81,8 +87,11 @@ namespace CsPurity
         /// Analyzes the purity of the given text.
         /// </summary>
         /// <param name="file">The content of the file to analyze</param>
-        /// <returns>A LookupTable containing each method in <paramref
-        /// name="file"/>, its dependency set as well as its purity level
+        /// <returns>
+        /// A LookupTable containing each method in <paramref name="file"/>,
+        /// its dependency set as well as its purity level. If
+        /// <see cref="exceptionsAreImpure"/> is false then exceptions will be
+        /// ignored.
         /// </returns>
         public static LookupTable Analyze(IEnumerable<string> files)
         {
@@ -120,7 +129,7 @@ namespace CsPurity
                     {
                         SetPurityAndPropagate(method, Purity.Impure);
                     }
-                    else if (analyzer.ThrowsException(method))
+                    else if (exceptionsAreImpure && analyzer.ThrowsException(method))
                     {
                         SetPurityAndPropagate(method, Purity.ImpureThrowsException);
                     }
@@ -194,12 +203,13 @@ namespace CsPurity
         }
 
         /// <summary>
-        /// Builds the semantic model
+        /// Builds a semantic model.
         /// </summary>
         /// <param name="trees">
-        /// All trees including <paramref name="tree"/>
-        /// representing all files making up the program to analyze </param>
-        /// <param name="tree">The </param>
+        /// All trees including <paramref name="tree"/> representing all files
+        /// making up the program to analyze
+        /// </param>
+        /// <param name="tree"></param>
         /// <returns></returns>
         public static SemanticModel GetSemanticModel(IEnumerable<SyntaxTree> trees, SyntaxTree tree)
         {
@@ -300,13 +310,13 @@ namespace CsPurity
 
         /// <summary>
         /// Checks if the methods contains an identifier with an unknown
-        /// implementation.
+        /// implementation. Exceptions are not considered unknown.
         /// </summary>
         /// <param name="method">The method to check</param>
         /// <returns>
         /// False if <paramref name="method"/> has a known implementation or if
-        /// it contained in the `knownPurities` list of known purities,
-        /// otherwise true.
+        /// it contained in the <see cref="knownPurities"/> list of known
+        /// purities, otherwise true.
         /// </returns>
         public bool ContainsUnknownIdentifier(Method method)
         {
@@ -316,6 +326,9 @@ namespace CsPurity
             {
                 // If the identifier is a parameter it cannot count as unknown
                 if (identifier.Parent.Kind() == SyntaxKind.Parameter) continue;
+
+                // Exceptions are not considered unknown
+                if (isException(identifier)) continue;
 
                 SemanticModel model = Analyzer.GetSemanticModel(
                     lookupTable.trees,
@@ -336,6 +349,12 @@ namespace CsPurity
                 }
             }
             return false;
+
+            static bool isException(IdentifierNameSyntax identifier)
+            {
+                return identifier.Identifier.Text == "Exception"
+                    && identifier.Parent.Kind() == SyntaxKind.ObjectCreationExpression;
+            }
         }
 
         /// <summary>
@@ -376,6 +395,7 @@ namespace CsPurity
             LookupTable lt = Analyze(files)
                 .StripMethodsNotDeclaredInAnalyzedFiles()
                 .StripInterfaceMethods();
+
             WriteLine();
             WriteLine($"Methods with [Pure] attribute:");
             WriteLine();
@@ -393,6 +413,30 @@ namespace CsPurity
             WriteLine($"  Impure: " + lt.CountMethodsWithPurity(
                 new Purity[] {Purity.Impure, Purity.ImpureThrowsException}, false)
             );
+            WriteLine($"  Unknown: {lt.CountMethodsWithPurity(Purity.Unknown, false)}");
+            WriteLine($"  Total: {lt.CountMethods(false)}");
+            WriteLine();
+            WriteLine($"Total number of methods: {lt.CountMethods()}");
+        }
+
+        static void AnalyzeAndPrintEvaluateExceptionsArePure(IEnumerable<string> files)
+        {
+            LookupTable lt = Analyze(files)
+                .StripMethodsNotDeclaredInAnalyzedFiles()
+                .StripInterfaceMethods();
+
+            WriteLine();
+            WriteLine($"Methods with [Pure] attribute:");
+            WriteLine();
+            WriteLine($"  Pure: {lt.CountMethodsWithPurity(Purity.Pure, true)}");
+            WriteLine($"  Impure: {lt.CountMethodsWithPurity(Purity.Impure, true)}");
+            WriteLine($"  Unknown: {lt.CountMethodsWithPurity(Purity.Unknown, true)}");
+            WriteLine($"  Total: {lt.CountMethods(true)}");
+            WriteLine();
+            WriteLine($"Methods without [Pure] attribute:");
+            WriteLine();
+            WriteLine($"  Pure: {lt.CountMethodsWithPurity(Purity.Pure, false)}");
+            WriteLine($"  Impure: " + lt.CountMethodsWithPurity(Purity.Impure, false));
             WriteLine($"  Unknown: {lt.CountMethodsWithPurity(Purity.Unknown, false)}");
             WriteLine($"  Total: {lt.CountMethods(false)}");
             WriteLine();
@@ -417,9 +461,16 @@ namespace CsPurity
             }
         }
 
-        public static void AnalyzeAndPrint(IEnumerable<string> files, bool pureAttributesOnly, bool evaluate)
+        public static void AnalyzeAndPrint(
+            IEnumerable<string> files,
+            bool pureAttributesOnly,
+            bool evaluate
+        )
         {
-            if (evaluate) AnalyzeAndPrintEvaluate(files);
+            if (evaluate) {
+                if (exceptionsAreImpure) AnalyzeAndPrintEvaluate(files);
+                else AnalyzeAndPrintEvaluateExceptionsArePure(files);
+            }
             else AnalyzeAndPrint(files, pureAttributesOnly);
         }
 
@@ -1209,7 +1260,10 @@ namespace CsPurity
                 identifier = "*delegate invocation";
                 isDelegateFunction = true;
             }
-            else if (declaringReferences.Single().GetSyntax().Kind() == SyntaxKind.ConversionOperatorDeclaration)
+            else if (
+                declaringReferences.Single().GetSyntax().Kind()
+                    == SyntaxKind.ConversionOperatorDeclaration
+            )
             {
                 // Handles the rare case where GetSyntax() returns the operator
                 // for an implicit conversion instead of the invoked method

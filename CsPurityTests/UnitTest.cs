@@ -267,6 +267,47 @@ namespace CsPurityTests
         }
 
         [TestMethod]
+        public void TestIgnoreExceptions()
+        {
+            var file = (@"
+                class C1
+                {
+                    void foo() {
+                        bar();
+                        throw new Exception(
+                            $""Foo exception""
+                        );
+                    }
+
+                    int bar() {
+                        return 42;
+                    }
+                }
+            ");
+
+            LookupTable lookupTable = Analyzer.Analyze(file);
+            var foo = lookupTable.GetMethodByName("foo");
+            var bar = lookupTable.GetMethodByName("bar");
+
+            Analyzer.exceptionsAreImpure = true;
+
+            Assert.AreEqual(
+                Purity.ImpureThrowsException,
+                lookupTable.GetPurity(foo)
+            );
+            Assert.AreEqual(Purity.Pure, lookupTable.GetPurity(bar));
+
+            Analyzer.exceptionsAreImpure = false;
+
+            lookupTable = Analyzer.Analyze(file);
+            foo = lookupTable.GetMethodByName("foo");
+            bar = lookupTable.GetMethodByName("bar");
+
+            Assert.AreEqual(Purity.Pure, lookupTable.GetPurity(foo));
+            Assert.AreEqual(Purity.Pure, lookupTable.GetPurity(bar));
+        }
+
+        [TestMethod]
         public void TestAnalyze()
         {
             var file = (@"
