@@ -479,6 +479,32 @@ namespace CsPurity
             AnalyzeAndPrint(new List<string> { file }, pureAttributesOnly, evaluate);
         }
 
+        delegate void FlagHandlerCallback();
+
+
+        /// <summary>
+        /// If <paramref name="args"/> contains <paramref name="flag"/>
+        /// <paramref name="callback"/> is run and <paramref name="flag"/> is
+        /// removed from <paramref name="args"/>.
+        /// </summary>
+        /// <param name="args">Command line arguments.</param>
+        /// <param name="flag">Flag, including leading `--`</param>
+        /// <param name="callback">
+        /// Function to be called if <paramref name="args"/> contain
+        /// <paramref name="flag"/>
+        /// </param>
+        /// <returns>
+        /// <paramref name="args"/> with <paramref name="flag"/> removed
+        /// </returns>
+        static string[] FlagHandler(string[] args, string flag, FlagHandlerCallback callback)
+        {
+            if (args.Contains(flag)) {
+                callback();
+                args = args.Except(new string[] { flag }).ToArray();
+            }
+            return args;
+        }
+
         static void Main(string[] args)
         {
             var watch = Stopwatch.StartNew();
@@ -492,22 +518,23 @@ namespace CsPurity
                 "--string",
                 "--files",
                 "--pure-attribute",
-                "--evaluate"
+                "--evaluate",
+                "--ignore-exceptions"
             };
             IEnumerable<string> unrecognizedFlags = args
                 .Where(a => a.Length > 2)
-                .Where(a => a.Substring(2) == "--")
+                .Where(a => a[2..] == "--")
                 .Where(a => !validFlags.Contains(a));
 
-            if (args.Contains("--pure-attribute")) {
-                pureAttributesOnly = true;
-                args = args.Except(new string[] { "--pure-attribute" }).ToArray();
-            }
-
-            if (args.Contains("--evaluate")) {
-                evaluate = true;
-                args = args.Except(new string[] { "--evaluate" }).ToArray();
-            }
+            args = FlagHandler(
+                args, "--pure-attribute", () => pureAttributesOnly = true
+            );
+            args = FlagHandler(
+                args, "--evaluate", () => evaluate = true
+            );
+            args = FlagHandler(
+                args, "--ignore-exceptions", () => exceptionsAreImpure = false
+            );
 
             if (!args.Any())
             {
