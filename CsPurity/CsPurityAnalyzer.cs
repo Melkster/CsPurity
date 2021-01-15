@@ -27,9 +27,7 @@ namespace CsPurity
         readonly public LookupTable lookupTable;
         // Set this to true if enums should be considered to be impure.
         readonly public static bool enumsAreImpure = false;
-        // Set this to true if exceptions should be considered impure. If set
-        // to false this only affects the --evaluate flag. If the program is
-        // not run with --evaluate this toggle will be ignored.
+        // Determines if exceptions should be considered impure or not.
         public static bool exceptionsAreImpure = true;
 
         // All methods in the knownPurities are those that have an already
@@ -450,7 +448,11 @@ namespace CsPurity
                 .StripInterfaceMethods();
             WriteLine(lt.ToStringNoDependencySet(pureAttributesOnly));
             WriteLine("Method purity ratios:");
-            if (pureAttributesOnly)
+            if (!exceptionsAreImpure)
+            {
+                WriteLine(lt.GetFalsePositivesAndNegativesExceptionsArePure());
+            }
+            else if (pureAttributesOnly)
             {
                 WriteLine(lt.GetPurityRatiosPureAttributesOnly());
             }
@@ -1122,6 +1124,30 @@ namespace CsPurity
                 $"  Amount: {CountFalseNegatives()}\n" +
                 $"   - Throw exceptions: {throwExceptionCount}\n" +
                 $"   - Other: {otherImpuresCount}\n\n" +
+
+                falsePositivesText +
+
+                $"  Amount: {CountFalsePositives()}";
+        }
+
+        public string GetFalsePositivesAndNegativesExceptionsArePure()
+        {
+            int impuresCount = CountMethodsWithPurity(Purity.Impure, true);
+            var falseNegatives = GetMethodsWithPurity(Purity.Impure, true);
+            var falsePositives = GetMethodsWithPurity(Purity.Pure, false);
+
+            string falseNegativesText = falseNegatives.Any() ?
+                $"These methods were classified as impure (false negatives):\n\n" +
+                string.Join("\n", falseNegatives.Select(m => "  " + m)) + $"\n\n"
+                : "False negatives:\n";
+            string falsePositivesText = falsePositives.Any() ?
+                $"These methods were classified as pure (false positives):\n\n" +
+                string.Join("\n", falsePositives.Select(m => "  " + m)) + $"\n\n"
+                : "False positives:\n";
+
+            return "\n" + falseNegativesText +
+
+                $"  Amount: {impuresCount}\n\n" +
 
                 falsePositivesText +
 
