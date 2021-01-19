@@ -25,7 +25,7 @@ namespace CsPurity
     public class Analyzer
     {
         readonly public LookupTable lookupTable;
-        // Set this to `true` if enums should be considered to be impure.
+        // Set this to true if enums should be considered to be impure.
         readonly public static bool enumsAreImpure = false;
 
         // All methods in the knownPurities are those that have an already
@@ -81,8 +81,9 @@ namespace CsPurity
         /// Analyzes the purity of the given text.
         /// </summary>
         /// <param name="file">The content of the file to analyze</param>
-        /// <returns>A LookupTable containing each method in <paramref
-        /// name="file"/>, its dependency set as well as its purity level
+        /// <returns>
+        /// A LookupTable containing each method in <paramref name="file"/>,
+        /// its dependency set as well as its purity level.
         /// </returns>
         public static LookupTable Analyze(IEnumerable<string> files)
         {
@@ -194,12 +195,12 @@ namespace CsPurity
         }
 
         /// <summary>
-        /// Builds the semantic model
+        /// Builds a semantic model
         /// </summary>
         /// <param name="trees">
-        /// All trees including <paramref name="tree"/>
-        /// representing all files making up the program to analyze </param>
-        /// <param name="tree">The </param>
+        /// All trees including <paramref name="tree"/> representing all files
+        /// making up the program to analyze </param>
+        /// <param name="tree"></param>
         /// <returns></returns>
         public static SemanticModel GetSemanticModel(IEnumerable<SyntaxTree> trees, SyntaxTree tree)
         {
@@ -305,8 +306,8 @@ namespace CsPurity
         /// <param name="method">The method to check</param>
         /// <returns>
         /// False if <paramref name="method"/> has a known implementation or if
-        /// it contained in the `knownPurities` list of known purities,
-        /// otherwise true.
+        /// it is contained in the <see cref="knownPurities"/> list of known
+        /// purities, otherwise true.
         /// </returns>
         public bool ContainsUnknownIdentifier(Method method)
         {
@@ -445,7 +446,7 @@ namespace CsPurity
             };
             IEnumerable<string> unrecognizedFlags = args
                 .Where(a => a.Length > 2)
-                .Where(a => a.Substring(2) == "--")
+                .Where(a => a[2..] == "--")
                 .Where(a => !validFlags.Contains(a));
 
             if (args.Contains("--pure-attribute")) {
@@ -1209,7 +1210,10 @@ namespace CsPurity
                 identifier = "*delegate invocation";
                 isDelegateFunction = true;
             }
-            else if (declaringReferences.Single().GetSyntax().Kind() == SyntaxKind.ConversionOperatorDeclaration)
+            else if (
+                declaringReferences.Single().GetSyntax().Kind()
+                    == SyntaxKind.ConversionOperatorDeclaration
+                )
             {
                 // Handles the rare case where GetSyntax() returns the operator
                 // for an implicit conversion instead of the invoked method
