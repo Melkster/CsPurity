@@ -1297,6 +1297,11 @@ namespace CsPurity
             return declaration?.Body != null;
         }
 
+        public IEnumerable<AssignmentExpressionSyntax> GetAssignments()
+        {
+            return GetRoot().DescendantNodes().OfType<AssignmentExpressionSyntax>();
+        }
+
         public override bool Equals(Object obj)
         {
             if (!(obj is Method)) return false;

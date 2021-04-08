@@ -888,7 +888,7 @@ namespace CsPurityTests
         }
 
         [TestMethod]
-        public void TestHasMethodBody()
+        public void TestHasBody()
         {
             var file = (@"
                 class Foz
@@ -2218,6 +2218,40 @@ namespace CsPurityTests
 
             Assert.AreEqual(2, lt.CountFalsePositives());
             Assert.AreEqual(1, lt.CountFalseNegatives());
+        }
+
+        [TestMethod]
+        public void TestDetectAssignment()
+        {
+            var file = (@"
+                class Class1
+                {
+                    int val = 0;
+
+                    public string Foo(int baz)
+                    {
+                        val = 1;
+                        bar = 42;
+                        val++;
+                        baz = val;
+                    }
+                }
+            ");
+            var tree = CSharpSyntaxTree.ParseText(file);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+
+            var foo = HelpMethods.GetMethodDeclaration("Foo", root);
+
+            // var assignments = tree
+            //     .GetRoot()
+            //     .DescendantNodes()
+            //     .OfType<AssignmentExpressionSyntax>();
+
+            var assignments = foo.GetAssignments();
+            Assert.IsTrue(assignments.Count() == 3);
+            Assert.IsTrue(assignments.Where(a => a.ToString().Equals("val = 1")).Any());
+            Assert.IsTrue(assignments.Where(a => a.ToString().Equals("bar = 42")).Any());
+            Assert.IsTrue(assignments.Where(a => a.ToString().Equals("baz = val")).Any());
         }
     }
 
