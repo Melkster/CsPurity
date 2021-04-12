@@ -2221,7 +2221,7 @@ namespace CsPurityTests
         }
 
         [TestMethod]
-        public void TestDetectAssignment()
+        public void TestGetAssignment()
         {
             var file = (@"
                 class Class1
@@ -2233,6 +2233,9 @@ namespace CsPurityTests
                         val = 1;
                         bar = 42;
                         val++;
+                        val--;
+                        ++val;
+                        --val;
                         baz = val;
                     }
                 }
@@ -2242,16 +2245,95 @@ namespace CsPurityTests
 
             var foo = HelpMethods.GetMethodDeclaration("Foo", root);
 
-            // var assignments = tree
-            //     .GetRoot()
-            //     .DescendantNodes()
-            //     .OfType<AssignmentExpressionSyntax>();
-
             var assignments = foo.GetAssignments();
             Assert.IsTrue(assignments.Count() == 3);
             Assert.IsTrue(assignments.Where(a => a.ToString().Equals("val = 1")).Any());
             Assert.IsTrue(assignments.Where(a => a.ToString().Equals("bar = 42")).Any());
             Assert.IsTrue(assignments.Where(a => a.ToString().Equals("baz = val")).Any());
+        }
+
+        [TestMethod]
+        public void TestGetUnaryAssignments()
+        {
+            var file = (@"
+                class Class1
+                {
+                    int val = 0;
+
+                    public string Foo(int baz)
+                    {
+                        val = 1;
+                        bar = 42;
+                        val++;
+                        val--;
+                        ++val;
+                        --val;
+                        baz = val;
+                        baz = val;
+                    }
+                }
+            ");
+            Analyzer analyzer = new Analyzer(file);
+            var tree = analyzer.lookupTable.trees.First();
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+
+            var foo = HelpMethods.GetMethodDeclaration("Foo", root);
+
+            var assignments = foo.GetUnaryAssignments();
+            Assert.IsTrue(assignments.Count() == 4);
+            Assert.IsTrue(assignments.Where(a => a.ToString().Equals("val++")).Any());
+            Assert.IsTrue(assignments.Where(a => a.ToString().Equals("val--")).Any());
+            Assert.IsTrue(assignments.Where(a => a.ToString().Equals("++val")).Any());
+            Assert.IsTrue(assignments.Where(a => a.ToString().Equals("--val")).Any());
+
+            var ass = (IdentifierNameSyntax)((PostfixUnaryExpressionSyntax)assignments.First()).Operand;
+            var bar = analyzer.IdentifierIsFresh(ass, foo);
+        }
+
+        [TestMethod]
+        public void TestIdentifierIsFresh()
+        {
+            var file = (@"
+                namespace ConsoleApp2
+                {
+                    class Class1
+                    {
+                        int val = 0;
+
+                        public void Foo()
+                        {
+                            var bar = 42;
+                            bar = 43;
+                            val = 1;
+                        }
+
+                        public void Bar(int baz)
+                        {
+                            var bar = 42;
+                            val = 1;
+                            val++;
+                            baz = 9;
+                        }
+                    }
+                }
+            ");
+            Analyzer analyzer = new Analyzer(file);
+            var tree = analyzer.lookupTable.trees.First();
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+
+            var foo = HelpMethods.GetMethodDeclaration("Foo", root);
+            var bar = HelpMethods.GetMethodDeclaration("Bar", root);
+
+            var valAssignment = (AssignmentExpressionSyntax) HelpMethods.GetAssignmentByName("val = 1", foo);
+            var barAssignment = (AssignmentExpressionSyntax) HelpMethods.GetAssignmentByName("bar = 43", foo);
+            var valAssignment2 = (AssignmentExpressionSyntax) HelpMethods.GetAssignmentByName("val = 1", bar);
+            var bazAssignment = (AssignmentExpressionSyntax) HelpMethods.GetAssignmentByName("baz = 9", bar);
+
+
+            Assert.IsFalse(analyzer.IdentifierIsFresh(valAssignment.Left, foo) ?? false);
+            Assert.IsTrue(analyzer.IdentifierIsFresh(barAssignment.Left, foo) ?? false);
+            Assert.IsFalse(analyzer.IdentifierIsFresh(valAssignment2.Left, foo) ?? false);
+            Assert.IsFalse(analyzer.IdentifierIsFresh(bazAssignment.Left, bar) ?? false);
         }
     }
 
@@ -2288,6 +2370,12 @@ namespace CsPurityTests
                 }
             }
             return null;
+        }
+
+        public static ExpressionSyntax GetAssignmentByName(string name, Method method)
+        {
+            var bar = method.GetAssignments();
+            return method.GetAssignments().Where(a => a.ToString() == name).Single();
         }
 
         // Rows need to be in the same order in both tables

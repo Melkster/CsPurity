@@ -272,6 +272,54 @@ namespace CsPurity
             return identifiers;
         }
 
+        /// <summary>
+        /// Checks if identifier is fresh, i.e. declared inside the method.
+        /// </summary>
+        /// <param name="identifier">Identifier to check if it is fresh</param>
+        /// <param name="method">Method that identifier is located in</param>
+        /// <returns>
+        /// True if <paramref name="identifier"/> is declared inside <paramref
+        /// name="method"/>, and false if it is not. If declaration of
+        /// <paramref name="identifier"/> could not be found null is returned.
+        /// </returns>
+        public bool? IdentifierIsFresh(ExpressionSyntax identifier, Method method)
+        {
+            SemanticModel model = Analyzer.GetSemanticModel(
+                lookupTable.trees,
+                method.GetRoot().SyntaxTree
+            );
+            ISymbol symbol = model.GetSymbolInfo(identifier).Symbol;
+            if (symbol == null) return null;
+
+            // If symbol is a parameter it cannot be fresh
+            if (symbol.Kind == SymbolKind.Parameter) return false;
+
+            var symbolMethodAncestor = symbol
+                .DeclaringSyntaxReferences
+                .First() // TODO: check all trees
+                .GetSyntax()
+                .Ancestors()
+                .OfType<MethodDeclarationSyntax>()
+                .FirstOrDefault();
+
+            var identifierMethodAncestor = identifier
+                .Ancestors()
+                .OfType<MethodDeclarationSyntax>()
+                .First();
+
+            // var returnval = methodAncestors.Where(a => a
+            //     .DescendantNodes()
+            //     .OfType<IdentifierNameSyntax>()
+            //     .Where(i => i.Equals(identifier)).Any()
+            // ).Any();
+
+            // Identifier is fresh if it lies inside the same method as its
+            // declaration does
+            return symbolMethodAncestor == identifierMethodAncestor;
+        }
+
+        // public bool AssignsToNonFreshVariable // TODO
+
         public bool ReadsStaticFieldOrProperty(Method method)
         {
             IEnumerable<IdentifierNameSyntax> identifiers = GetIdentifiers(method);
@@ -1297,9 +1345,19 @@ namespace CsPurity
             return declaration?.Body != null;
         }
 
-        public IEnumerable<AssignmentExpressionSyntax> GetAssignments()
+        public IEnumerable<ExpressionSyntax> GetAssignments()
         {
-            return GetRoot().DescendantNodes().OfType<AssignmentExpressionSyntax>();
+            return declaration.DescendantNodes().OfType<AssignmentExpressionSyntax>();
+        }
+
+        public IEnumerable<ExpressionSyntax> GetUnaryAssignments()
+        {
+            return ((IEnumerable<ExpressionSyntax>) GetRoot()
+                .DescendantNodes()
+                .OfType<PostfixUnaryExpressionSyntax>())
+                .Union(GetRoot()
+                .DescendantNodes()
+                .OfType<PrefixUnaryExpressionSyntax>());
         }
 
         public override bool Equals(Object obj)
