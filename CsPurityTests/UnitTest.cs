@@ -2338,10 +2338,10 @@ namespace CsPurityTests
             var bazAssignment = HelpMethods.GetAssignmentByName("baz", bar);
 
 
-            Assert.IsFalse(analyzer.IdentifierIsFresh(valAssignment, foo) ?? false);
-            Assert.IsTrue(analyzer.IdentifierIsFresh(barAssignment, foo) ?? false);
-            Assert.IsFalse(analyzer.IdentifierIsFresh(valAssignment2, foo) ?? false);
-            Assert.IsFalse(analyzer.IdentifierIsFresh(bazAssignment, bar) ?? false);
+            Assert.IsFalse(analyzer.IdentifierIsFresh(valAssignment, foo));
+            Assert.IsTrue(analyzer.IdentifierIsFresh(barAssignment, foo));
+            Assert.IsFalse(analyzer.IdentifierIsFresh(valAssignment2, foo));
+            Assert.IsFalse(analyzer.IdentifierIsFresh(bazAssignment, bar));
         }
 
         [TestMethod]

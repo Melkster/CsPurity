@@ -279,17 +279,17 @@ namespace CsPurity
         /// <param name="method">Method that identifier is located in</param>
         /// <returns>
         /// True if <paramref name="identifier"/> is declared inside <paramref
-        /// name="method"/>, and false if it is not. If declaration of
-        /// <paramref name="identifier"/> could not be found null is returned.
+        /// name="method"/>, and false if it is not (including if its
+        /// declaration could not be found).
         /// </returns>
-        public bool? IdentifierIsFresh(ExpressionSyntax identifier, Method method)
+        public bool IdentifierIsFresh(ExpressionSyntax identifier, Method method)
         {
             SemanticModel model = Analyzer.GetSemanticModel(
                 lookupTable.trees,
                 method.GetRoot().SyntaxTree
             );
             ISymbol symbol = model.GetSymbolInfo(identifier).Symbol;
-            if (symbol == null) return null;
+            if (symbol == null) return false;
 
             // If symbol is a parameter it cannot be fresh
             if (symbol.Kind == SymbolKind.Parameter) return false;
@@ -317,7 +317,7 @@ namespace CsPurity
             return method
                 .GetAssignees()
                 .Union(method.GetUnaryAssignees())
-                .Where(i => !IdentifierIsFresh(i, method) ?? false)
+                .Where(i => !IdentifierIsFresh(i, method))
                 .Count() > 0;
         }
 
