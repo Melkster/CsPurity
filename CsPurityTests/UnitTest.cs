@@ -2264,7 +2264,7 @@ namespace CsPurityTests
                     public void Foo(int baz)
                     {
                         int val = 1;
-                        baz = 42;
+                        baz = baz + 42;
                         val1++;
                         val2--;
                         ++val3;
@@ -2345,7 +2345,7 @@ namespace CsPurityTests
         }
 
         [TestMethod]
-        public void TestAssignsToNonFreshIdentifier()
+        public void TestModifiesNonFreshIdentifier()
         {
             var file = (@"
                 namespace ConsoleApp2
@@ -2384,9 +2384,9 @@ namespace CsPurityTests
             var bar = HelpMethods.GetMethodDeclaration("Bar", root);
             var square = HelpMethods.GetMethodDeclaration("Square", root);
 
-            Assert.IsTrue(analyzer.AssignsToNonFreshIdentifier(foo));
-            Assert.IsTrue(analyzer.AssignsToNonFreshIdentifier(bar));
-            Assert.IsFalse(analyzer.AssignsToNonFreshIdentifier(square));
+            Assert.IsTrue(analyzer.ModifiesNonFreshIdentifier(foo));
+            Assert.IsTrue(analyzer.ModifiesNonFreshIdentifier(bar));
+            Assert.IsFalse(analyzer.ModifiesNonFreshIdentifier(square));
         }
     }
 

@@ -125,6 +125,10 @@ namespace CsPurity
                     {
                         SetPurityAndPropagate(method, Purity.ImpureThrowsException);
                     }
+                    else if (analyzer.ModifiesNonFreshIdentifier(method))
+                    {
+                        SetPurityAndPropagate(method, Purity.Impure);
+                    }
                     else if (table.GetPurity(method) == Purity.Unknown)
                     {
                         PropagatePurity(method);
@@ -312,7 +316,16 @@ namespace CsPurity
             return symbolMethodAncestor == identifierMethodAncestor;
         }
 
-        public bool AssignsToNonFreshIdentifier(Method method)
+
+        /// <summary>
+        /// Checks if the method modifies an identifier that is no fresh.
+        /// </summary>
+        /// <param name="method">The method to check</param>
+        /// <returns>
+        /// True if <paramref name="method"/> modifies an identifier that isn't
+        /// fresh, otherwise false.
+        /// </returns>
+        public bool ModifiesNonFreshIdentifier(Method method)
         {
             return method
                 .GetAssignees()
@@ -1346,6 +1359,11 @@ namespace CsPurity
             return declaration?.Body != null;
         }
 
+
+        /// <summary>
+        /// Gets all tokens that are assigned to inside the method.
+        /// </summary>
+        /// <returns>The token that is assigned to with `=`</returns>
         public IEnumerable<ExpressionSyntax> GetAssignees()
         {
             return declaration
@@ -1354,6 +1372,10 @@ namespace CsPurity
                 .Select(a => a.Left);
         }
 
+        /// <summary>
+        /// Gets all tokens that are assigned to inside the method.
+        /// </summary>
+        /// <returns>The token that is assigned to with a unary </returns>
         public IEnumerable<ExpressionSyntax> GetUnaryAssignees()
         {
             return declaration
