@@ -1359,13 +1359,16 @@ namespace CsPurity
             return declaration?.Body != null;
         }
 
-
         /// <summary>
         /// Gets all tokens that are assigned to inside the method.
         /// </summary>
         /// <returns>The token that is assigned to with `=`</returns>
         public IEnumerable<ExpressionSyntax> GetAssignees()
         {
+            if (!HasKnownDeclaration())
+            {
+                return Enumerable.Empty<ExpressionSyntax>();
+            }
             return declaration
                 .DescendantNodes()
                 .OfType<AssignmentExpressionSyntax>()
@@ -1378,6 +1381,10 @@ namespace CsPurity
         /// <returns>The token that is assigned to with a unary </returns>
         public IEnumerable<ExpressionSyntax> GetUnaryAssignees()
         {
+            if (!HasKnownDeclaration())
+            {
+                return Enumerable.Empty<ExpressionSyntax>();
+            }
             return declaration
                 .DescendantNodes()
                 .OfType<PostfixUnaryExpressionSyntax>()

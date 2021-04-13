@@ -409,10 +409,10 @@ namespace CsPurityTests
             //TODO: Implement checks for for commented purities
             Assert.AreEqual(resultTable.GetPurity(lengthDeclaration), Purity.Pure);
 
-            Assert.AreEqual(resultTable.GetPurity(addDeclaration), Purity.Pure);
+            Assert.AreEqual(resultTable.GetPurity(addDeclaration), Purity.Impure);
             //Assert.AreEqual(resultTable.GetPurity(addDeclaration), Purity.LocallyImpure);
 
-            Assert.AreEqual(resultTable.GetPurity(removeDeclaration), Purity.Pure);
+            Assert.AreEqual(resultTable.GetPurity(removeDeclaration), Purity.Impure);
             //Assert.AreEqual(resultTable.GetPurity(removeDeclaration), Purity.ParametricallyImpure);
 
             Assert.AreEqual(resultTable.GetPurity(printListLengthDeclaration), Purity.Impure);
@@ -962,10 +962,7 @@ namespace CsPurityTests
             var file = (@"
             namespace Test {
                 public class TestClass {
-                    public int bar = 0;
-
                     public bool Baz(TypeCode tc, int foo) {
-                        bar = foo;
                         return tc == TypeCode.String;
                     }
 
@@ -977,8 +974,7 @@ namespace CsPurityTests
                         return tc;
                     }
 
-                    public enum TypeCode
-                    {
+                    public enum TypeCode {
                         String = 18
                     }
                 }
