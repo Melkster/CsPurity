@@ -307,18 +307,19 @@ namespace CsPurity
                 .OfType<MethodDeclarationSyntax>()
                 .First();
 
-            // var returnval = methodAncestors.Where(a => a
-            //     .DescendantNodes()
-            //     .OfType<IdentifierNameSyntax>()
-            //     .Where(i => i.Equals(identifier)).Any()
-            // ).Any();
-
             // Identifier is fresh if it lies inside the same method as its
             // declaration does
             return symbolMethodAncestor == identifierMethodAncestor;
         }
 
-        // public bool AssignsToNonFreshVariable // TODO
+        public bool AssignsToNonFreshIdentifier(Method method)
+        {
+            return method
+                .GetAssignees()
+                .Union(method.GetUnaryAssignees())
+                .Where(i => !IdentifierIsFresh(i, method) ?? false)
+                .Count() > 0;
+        }
 
         public bool ReadsStaticFieldOrProperty(Method method)
         {
@@ -1345,19 +1346,26 @@ namespace CsPurity
             return declaration?.Body != null;
         }
 
-        public IEnumerable<ExpressionSyntax> GetAssignments()
+        public IEnumerable<ExpressionSyntax> GetAssignees()
         {
-            return declaration.DescendantNodes().OfType<AssignmentExpressionSyntax>();
+            return declaration
+                .DescendantNodes()
+                .OfType<AssignmentExpressionSyntax>()
+                .Select(a => a.Left);
         }
 
-        public IEnumerable<ExpressionSyntax> GetUnaryAssignments()
+        public IEnumerable<ExpressionSyntax> GetUnaryAssignees()
         {
-            return ((IEnumerable<ExpressionSyntax>) GetRoot()
+            return declaration
                 .DescendantNodes()
-                .OfType<PostfixUnaryExpressionSyntax>())
-                .Union(GetRoot()
-                .DescendantNodes()
-                .OfType<PrefixUnaryExpressionSyntax>());
+                .OfType<PostfixUnaryExpressionSyntax>()
+                .Select(a => a.Operand)
+                .Union(
+                    declaration
+                        .DescendantNodes()
+                        .OfType<PrefixUnaryExpressionSyntax>()
+                        .Select(a => a.Operand)
+                );
         }
 
         public override bool Equals(Object obj)
