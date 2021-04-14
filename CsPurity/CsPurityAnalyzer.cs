@@ -293,7 +293,12 @@ namespace CsPurity
                 method.GetRoot().SyntaxTree
             );
             ISymbol symbol = model.GetSymbolInfo(identifier).Symbol;
-            if (symbol == null) return false;
+
+            // If declaration could not be found the identifier cannot be fresh
+            if (symbol == null || symbol.DeclaringSyntaxReferences.Count() < 1)
+            {
+                return false;
+            }
 
             // If symbol is a parameter it cannot be fresh
             if (symbol.Kind == SymbolKind.Parameter) return false;
@@ -1264,7 +1269,11 @@ namespace CsPurity
             }
             else if (
                 methodSymbol.MethodKind == MethodKind.DelegateInvoke ||
-                declaringReferences.Single().GetSyntax().Kind() == SyntaxKind.DelegateDeclaration
+                    declaringReferences
+                        .Single()
+                        .GetSyntax()
+                        .Kind() == SyntaxKind
+                        .DelegateDeclaration
             )
             {
                 // Handles delegates, including the case of the methods
