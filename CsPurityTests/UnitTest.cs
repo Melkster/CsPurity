@@ -34,8 +34,8 @@ namespace CsPurityTests
             var fooDeclaration = resultTable.GetMethodByName("Foo");
             var barDeclaration = resultTable.GetMethodByName("Bar");
 
-            Assert.AreEqual(resultTable.GetPurity(fooDeclaration), Purity.Pure);
-            Assert.AreEqual(resultTable.GetPurity(barDeclaration), Purity.Pure);
+            Assert.AreEqual(Purity.Pure, resultTable.GetPurity(fooDeclaration));
+            Assert.AreEqual(Purity.Pure, resultTable.GetPurity(barDeclaration));
         }
 
         /// <summary>
@@ -311,10 +311,10 @@ namespace CsPurityTests
             var bazDeclaration = resultTable.GetMethodByName("baz");
             var fozDeclaration = resultTable.GetMethodByName("foz");
 
-            Assert.AreEqual(resultTable.GetPurity(fooDeclaration), Purity.Pure);
-            Assert.AreEqual(resultTable.GetPurity(barDeclaration), Purity.Impure);
-            Assert.AreEqual(resultTable.GetPurity(bazDeclaration), Purity.Impure);
-            Assert.AreEqual(resultTable.GetPurity(fozDeclaration), Purity.Pure);
+            Assert.AreEqual(Purity.Pure, resultTable.GetPurity(fooDeclaration));
+            Assert.AreEqual(Purity.Impure, resultTable.GetPurity(barDeclaration));
+            Assert.AreEqual(Purity.Impure, resultTable.GetPurity(bazDeclaration));
+            Assert.AreEqual(Purity.Pure, resultTable.GetPurity(fozDeclaration));
         }
 
         [TestMethod]
@@ -411,16 +411,16 @@ namespace CsPurityTests
             var printLengthDeclaration = resultTable.GetMethodByName("PrintLength");
 
             //TODO: Implement checks for for commented purities
-            Assert.AreEqual(resultTable.GetPurity(lengthDeclaration), Purity.Pure);
+            Assert.AreEqual(Purity.Pure, resultTable.GetPurity(lengthDeclaration));
 
-            Assert.AreEqual(resultTable.GetPurity(addDeclaration), Purity.Impure);
-            //Assert.AreEqual(resultTable.GetPurity(addDeclaration), Purity.LocallyImpure);
+            Assert.AreEqual(Purity.Impure, resultTable.GetPurity(addDeclaration));
+            //Assert.AreEqual(Purity.LocallyImpure, resultTable.GetPurity(addDeclaration));
 
-            Assert.AreEqual(resultTable.GetPurity(removeDeclaration), Purity.Impure);
-            //Assert.AreEqual(resultTable.GetPurity(removeDeclaration), Purity.ParametricallyImpure);
+            Assert.AreEqual(Purity.Impure, resultTable.GetPurity(removeDeclaration));
+            //Assert.AreEqual(Purity.ParametricallyImpure, resultTable.GetPurity(removeDeclaration));
 
-            Assert.AreEqual(resultTable.GetPurity(printListLengthDeclaration), Purity.Impure);
-            Assert.AreEqual(resultTable.GetPurity(printLengthDeclaration), Purity.Impure);
+            Assert.AreEqual(Purity.Impure, resultTable.GetPurity(printListLengthDeclaration));
+            Assert.AreEqual(Purity.Impure, resultTable.GetPurity(printLengthDeclaration));
         }
 
         [TestMethod]
@@ -598,10 +598,10 @@ namespace CsPurityTests
             // when calculating Foo()'s dependencies.
             //
             // Foo() should only depend on Foz()
-            Assert.AreEqual(lt.CalculateDependencies(foo).Single(), foz);
+            Assert.AreEqual(foz, lt.CalculateDependencies(foo).Single());
             Assert.IsTrue(lt.HasMethod(foo));
             Assert.IsTrue(lt.HasMethod(foz));
-            Assert.AreEqual(lt.table.Rows.Count, 2);
+            Assert.AreEqual(2, lt.table.Rows.Count);
         }
 
         [TestMethod]
@@ -634,7 +634,7 @@ namespace CsPurityTests
                 }
             ");
             LookupTable lt = Analyzer.Analyze(file);
-            Assert.AreEqual(lt.table.Rows.Count, 5);
+            Assert.AreEqual(5, lt.table.Rows.Count);
         }
 
         [TestMethod]
@@ -688,19 +688,19 @@ namespace CsPurityTests
             var bar1 = lt.GetMethodByName("Bar1");
             var bar2 = lt.GetMethodByName("Bar2");
 
-            Assert.AreEqual(lt.GetPurity(bar), Purity.Impure);
+            Assert.AreEqual(Purity.Impure, lt.GetPurity(bar));
             Assert.IsTrue(HelpMethods.HaveEqualElements(
                 lt.CalculateDependencies(bar),
                 new List<Method> { foo1, foo2 }
             ));
 
-            Assert.AreEqual(lt.GetPurity(bar1), Purity.Pure);
+            Assert.AreEqual(Purity.Pure, lt.GetPurity(bar1));
             Assert.IsTrue(HelpMethods.HaveEqualElements(
                 lt.CalculateDependencies(bar1),
                 new List<Method> { foo1 }
             ));
 
-            Assert.AreEqual(lt.GetPurity(bar2), Purity.Impure);
+            Assert.AreEqual(Purity.Impure, lt.GetPurity(bar2));
             Assert.IsTrue(HelpMethods.HaveEqualElements(
                 lt.CalculateDependencies(bar2),
                 new List<Method> { foo2 }
@@ -731,7 +731,7 @@ namespace CsPurityTests
             LookupTable lt = Analyzer.Analyze(file);
             var foo = lt.GetMethodByName("Foo");
 
-            Assert.AreEqual(lt.table.Rows.Count, 1);
+            Assert.AreEqual(1, lt.table.Rows.Count);
             Assert.IsTrue(lt.HasMethod(foo));
         }
 
@@ -762,7 +762,7 @@ namespace CsPurityTests
                 .Last()
                 );
 
-            Assert.AreEqual(lt.table.Rows.Count, 1);
+            Assert.AreEqual(1, lt.table.Rows.Count);
             Assert.IsTrue(lt.HasMethod(foo));
         }
 
@@ -781,9 +781,9 @@ namespace CsPurityTests
             LookupTable lt = Analyzer.Analyze(file);
             var foo = lt.GetMethodByName("Foo");
 
-            Assert.AreEqual(lt.table.Rows.Count, 1);
+            Assert.AreEqual(1, lt.table.Rows.Count);
             Assert.IsTrue(lt.HasMethod(foo));
-            Assert.AreEqual(lt.GetPurity(foo), Purity.Pure);
+            Assert.AreEqual(Purity.Pure, lt.GetPurity(foo));
             Assert.IsTrue(!lt.CalculateDependencies(foo).Any());
         }
 
@@ -823,8 +823,8 @@ namespace CsPurityTests
                 .Last()
             );
 
-            Assert.AreEqual(lt.table.Rows.Count, 2);
-            Assert.AreEqual(lt.CalculateDependencies(foo1).Single(), foo2);
+            Assert.AreEqual(2, lt.table.Rows.Count);
+            Assert.AreEqual(foo2, lt.CalculateDependencies(foo1).Single());
             Assert.IsTrue(!lt.CalculateDependencies(foo2).Any());
         }
 
@@ -849,9 +849,9 @@ namespace CsPurityTests
             var foo = lt.GetMethodByName("Foo");
             var bar = lt.GetMethodByName("Bar");
 
-            Assert.AreEqual(lt.table.Rows.Count, 2);
-            Assert.AreEqual(lt.CalculateDependencies(foo).Single(), bar);
-            Assert.AreEqual(lt.CalculateDependencies(bar).Single(), foo);
+            Assert.AreEqual(2, lt.table.Rows.Count);
+            Assert.AreEqual(bar, lt.CalculateDependencies(foo).Single());
+            Assert.AreEqual(foo, lt.CalculateDependencies(bar).Single());
         }
 
         [TestMethod]
@@ -1675,7 +1675,7 @@ namespace CsPurityTests
             );
 
             lt = lt.StripInterfaceMethods();
-            Assert.AreEqual(lt.table.Rows.Count, 1);
+            Assert.AreEqual(1, lt.table.Rows.Count);
             Assert.IsTrue(lt.HasMethod(foo));
         }
 
@@ -1863,28 +1863,28 @@ namespace CsPurityTests
 
             LookupTable lookupTable = new LookupTable(tree);
 
-            Assert.AreEqual(lookupTable.GetPurity(fooDeclaration), Purity.Pure);
-            Assert.AreEqual(lookupTable.GetPurity(barDeclaration), Purity.Pure);
-            Assert.AreEqual(lookupTable.GetPurity(bazDeclaration), Purity.Pure);
-            Assert.AreEqual(lookupTable.GetPurity(fozDeclaration), Purity.Pure);
+            Assert.AreEqual(Purity.Pure, lookupTable.GetPurity(fooDeclaration));
+            Assert.AreEqual(Purity.Pure, lookupTable.GetPurity(barDeclaration));
+            Assert.AreEqual(Purity.Pure, lookupTable.GetPurity(bazDeclaration));
+            Assert.AreEqual(Purity.Pure, lookupTable.GetPurity(fozDeclaration));
 
             lookupTable.SetPurity(fooDeclaration, Purity.Impure);
             lookupTable.SetPurity(barDeclaration, Purity.Pure);
             lookupTable.SetPurity(bazDeclaration, Purity.ParametricallyImpure);
 
-            Assert.AreEqual(lookupTable.GetPurity(fooDeclaration), Purity.Impure);
-            Assert.AreEqual(lookupTable.GetPurity(barDeclaration), Purity.Pure);
-            Assert.AreEqual(lookupTable.GetPurity(bazDeclaration), Purity.ParametricallyImpure);
-            Assert.AreEqual(lookupTable.GetPurity(fozDeclaration), Purity.Pure);
+            Assert.AreEqual(Purity.Impure, lookupTable.GetPurity(fooDeclaration));
+            Assert.AreEqual(Purity.Pure, lookupTable.GetPurity(barDeclaration));
+            Assert.AreEqual(Purity.ParametricallyImpure, lookupTable.GetPurity(bazDeclaration));
+            Assert.AreEqual(Purity.Pure, lookupTable.GetPurity(fozDeclaration));
 
             lookupTable.SetPurity(fooDeclaration, Purity.Impure);
             lookupTable.SetPurity(barDeclaration, Purity.Pure);
             lookupTable.SetPurity(bazDeclaration, Purity.ParametricallyImpure);
 
-            Assert.AreEqual(lookupTable.GetPurity(fooDeclaration), Purity.Impure);
-            Assert.AreEqual(lookupTable.GetPurity(barDeclaration), Purity.Pure);
-            Assert.AreEqual(lookupTable.GetPurity(bazDeclaration), Purity.ParametricallyImpure);
-            Assert.AreEqual(lookupTable.GetPurity(fozDeclaration), Purity.Pure);
+            Assert.AreEqual(Purity.Impure, lookupTable.GetPurity(fooDeclaration));
+            Assert.AreEqual(Purity.Pure, lookupTable.GetPurity(barDeclaration));
+            Assert.AreEqual(Purity.ParametricallyImpure, lookupTable.GetPurity(bazDeclaration));
+            Assert.AreEqual(Purity.Pure, lookupTable.GetPurity(fozDeclaration));
         }
 
         [TestMethod]
@@ -2029,8 +2029,8 @@ namespace CsPurityTests
             LookupTable lt1 = Analyzer.Analyze(file1);
             LookupTable lt2 = Analyzer.Analyze(file2);
 
-            Assert.AreEqual(lt1.CountMethods(), 4);
-            Assert.AreEqual(lt2.CountMethods(), 0);
+            Assert.AreEqual(4, lt1.CountMethods());
+            Assert.AreEqual(0, lt2.CountMethods());
         }
 
         [TestMethod]
@@ -2077,9 +2077,9 @@ namespace CsPurityTests
             ");
             LookupTable lt = Analyzer.Analyze(file);
 
-            Assert.AreEqual(lt.CountMethodsWithPurity(Purity.Pure), 2);
-            Assert.AreEqual(lt.CountMethodsWithPurity(Purity.Impure), 2);
-            Assert.AreEqual(lt.CountMethodsWithPurity(Purity.Unknown), 2);
+            Assert.AreEqual(2, lt.CountMethodsWithPurity(Purity.Pure));
+            Assert.AreEqual(2, lt.CountMethodsWithPurity(Purity.Impure));
+            Assert.AreEqual(2, lt.CountMethodsWithPurity(Purity.Unknown));
         }
 
         [TestMethod]
@@ -2500,9 +2500,9 @@ namespace CsPurityTests
             var clwMethod = new Method(clwInvocation, model);
             var barMethod = new Method(barInvocation, model);
 
-            Assert.AreEqual(clwMethod.identifier, "Console.WriteLine");
-            Assert.AreEqual(clwMethod.declaration, null);
-            Assert.AreEqual(barMethod.identifier, null);
+            Assert.AreEqual("Console.WriteLine", clwMethod.identifier);
+            Assert.AreEqual(null, clwMethod.declaration);
+            Assert.AreEqual(null, barMethod.identifier);
             Assert.AreEqual(
                 barMethod,
                 HelpMethods.GetMethodDeclaration("bar", root)
