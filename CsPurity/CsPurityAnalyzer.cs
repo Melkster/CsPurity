@@ -259,7 +259,10 @@ namespace CsPurity
         /// <returns>All IdentifierNameSyntax's inside <paramref name="method"/></returns>
         IEnumerable<IdentifierNameSyntax> GetIdentifiers(Method method)
         {
-            if (method.declaration == null) return new List<IdentifierNameSyntax>();
+            if (method.declaration == null)
+            {
+                return Enumerable.Empty<IdentifierNameSyntax>();
+            }
 
             IEnumerable<IdentifierNameSyntax> identifiers = method
                 .declaration
@@ -332,6 +335,7 @@ namespace CsPurity
         /// </returns>
         public bool ModifiesNonFreshIdentifier(Method method)
         {
+            if (method.ToString().Equals("[Pure] bool TypeConverterBase.CanConvertFrom")) ;
             return method
                 .GetAssignees()
                 .Union(method.GetUnaryAssignees())
@@ -1365,7 +1369,7 @@ namespace CsPurity
 
         public bool HasBody()
         {
-            return declaration?.Body != null;
+            return declaration?.Body != null || declaration?.ExpressionBody != null;
         }
 
         /// <summary>

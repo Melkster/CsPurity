@@ -22,16 +22,20 @@ namespace CsPurityTests
                 class C1
                 {
                     int bar = 42;
-                    int foo()
+                    int Foo()
                     {
                         return bar;
                     }
+
+                    public int Bar() => bar;
                 }
             ");
             LookupTable resultTable = Analyzer.Analyze(file);
-            var fooDeclaration = resultTable.GetMethodByName("foo");
+            var fooDeclaration = resultTable.GetMethodByName("Foo");
+            var barDeclaration = resultTable.GetMethodByName("Bar");
 
             Assert.AreEqual(resultTable.GetPurity(fooDeclaration), Purity.Pure);
+            Assert.AreEqual(resultTable.GetPurity(barDeclaration), Purity.Pure);
         }
 
         /// <summary>
