@@ -125,6 +125,10 @@ namespace CsPurity
                     {
                         SetPurityAndPropagate(method, Purity.ImpureThrowsException);
                     }
+                    else if (analyzer.ModifiesNonFreshIdentifier(method))
+                    {
+                        SetPurityAndPropagate(method, Purity.Impure);
+                    }
                     else if (table.GetPurity(method) == Purity.Unknown)
                     {
                         PropagatePurity(method);
@@ -255,7 +259,10 @@ namespace CsPurity
         /// <returns>All IdentifierNameSyntax's inside <paramref name="method"/></returns>
         IEnumerable<IdentifierNameSyntax> GetIdentifiers(Method method)
         {
-            if (method.declaration == null) return new List<IdentifierNameSyntax>();
+            if (method.declaration == null)
+            {
+                return Enumerable.Empty<IdentifierNameSyntax>();
+            }
 
             IEnumerable<IdentifierNameSyntax> identifiers = method
                 .declaration
@@ -270,6 +277,70 @@ namespace CsPurity
             );
 
             return identifiers;
+        }
+
+        /// <summary>
+        /// Checks if identifier is fresh, i.e. declared inside the method.
+        /// </summary>
+        /// <param name="identifier">Identifier to check if it is fresh</param>
+        /// <param name="method">Method that identifier is located in</param>
+        /// <returns>
+        /// True if <paramref name="identifier"/> is declared inside <paramref
+        /// name="method"/>, and false if it is not (including if its
+        /// declaration could not be found).
+        /// </returns>
+        public bool IdentifierIsFresh(ExpressionSyntax identifier, Method method)
+        {
+            SemanticModel model = Analyzer.GetSemanticModel(
+                lookupTable.trees,
+                method.GetRoot().SyntaxTree
+            );
+            ISymbol symbol = model.GetSymbolInfo(identifier).Symbol;
+
+            // If declaration could not be found the identifier cannot be fresh
+            if (symbol == null || symbol.DeclaringSyntaxReferences.Count() < 1)
+            {
+                return false;
+            }
+
+            // If symbol is a parameter it cannot be fresh
+            if (symbol.Kind == SymbolKind.Parameter) return false;
+
+            var symbolMethodAncestor = symbol
+                .DeclaringSyntaxReferences
+                .First() // TODO: check all trees
+                .GetSyntax()
+                .Ancestors()
+                .OfType<MethodDeclarationSyntax>()
+                .FirstOrDefault();
+
+            var identifierMethodAncestor = identifier
+                .Ancestors()
+                .OfType<MethodDeclarationSyntax>()
+                .First();
+
+            // Identifier is fresh if it lies inside the same method as its
+            // declaration does
+            return symbolMethodAncestor == identifierMethodAncestor;
+        }
+
+
+        /// <summary>
+        /// Checks if the method modifies an identifier that is no fresh.
+        /// </summary>
+        /// <param name="method">The method to check</param>
+        /// <returns>
+        /// True if <paramref name="method"/> modifies an identifier that isn't
+        /// fresh, otherwise false.
+        /// </returns>
+        public bool ModifiesNonFreshIdentifier(Method method)
+        {
+            if (method.ToString().Equals("[Pure] bool TypeConverterBase.CanConvertFrom")) ;
+            return method
+                .GetAssignees()
+                .Union(method.GetUnaryAssignees())
+                .Where(i => !IdentifierIsFresh(i, method))
+                .Count() > 0;
         }
 
         public bool ReadsStaticFieldOrProperty(Method method)
@@ -1202,7 +1273,11 @@ namespace CsPurity
             }
             else if (
                 methodSymbol.MethodKind == MethodKind.DelegateInvoke ||
-                declaringReferences.Single().GetSyntax().Kind() == SyntaxKind.DelegateDeclaration
+                    declaringReferences
+                        .Single()
+                        .GetSyntax()
+                        .Kind() == SyntaxKind
+                        .DelegateDeclaration
             )
             {
                 // Handles delegates, including the case of the methods
@@ -1294,7 +1369,45 @@ namespace CsPurity
 
         public bool HasBody()
         {
-            return declaration?.Body != null;
+            return declaration?.Body != null || declaration?.ExpressionBody != null;
+        }
+
+        /// <summary>
+        /// Gets all tokens that are assigned to inside the method.
+        /// </summary>
+        /// <returns>The token that is assigned to with `=`</returns>
+        public IEnumerable<ExpressionSyntax> GetAssignees()
+        {
+            if (!HasKnownDeclaration())
+            {
+                return Enumerable.Empty<ExpressionSyntax>();
+            }
+            return declaration
+                .DescendantNodes()
+                .OfType<AssignmentExpressionSyntax>()
+                .Select(a => a.Left);
+        }
+
+        /// <summary>
+        /// Gets all tokens that are assigned to inside the method.
+        /// </summary>
+        /// <returns>The token that is assigned to with a unary </returns>
+        public IEnumerable<ExpressionSyntax> GetUnaryAssignees()
+        {
+            if (!HasKnownDeclaration())
+            {
+                return Enumerable.Empty<ExpressionSyntax>();
+            }
+            return declaration
+                .DescendantNodes()
+                .OfType<PostfixUnaryExpressionSyntax>()
+                .Select(a => a.Operand)
+                .Union(
+                    declaration
+                        .DescendantNodes()
+                        .OfType<PrefixUnaryExpressionSyntax>()
+                        .Select(a => a.Operand)
+                );
         }
 
         public override bool Equals(Object obj)
