@@ -1372,41 +1372,68 @@ namespace CsPurity
             return declaration?.Body != null || declaration?.ExpressionBody != null;
         }
 
+
         /// <summary>
-        /// Gets all tokens that are assigned to inside the method.
+        /// Gets the base identifier from an expression, i.e. the leftmost
+        /// identifier in a member access expression, or in the case of an
+        /// array access expression, the array's identifier.
         /// </summary>
-        /// <returns>The token that is assigned to with `=`</returns>
-        public IEnumerable<ExpressionSyntax> GetAssignees()
+        /// <param name="expression">The expression</param>
+        /// <returns>If TODO</returns>
+        public static IdentifierNameSyntax GetBaseIdentifier(ExpressionSyntax expression)
+        {
+            while (true)
+            {
+                if (expression is MemberAccessExpressionSyntax memberAccess)
+                {
+                    expression = memberAccess.Expression;
+                }
+                else if (expression is ElementAccessExpressionSyntax elementAccess)
+                {
+                    expression = elementAccess.Expression;
+                }
+                else
+                {
+                    return (IdentifierNameSyntax)expression;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets all identifiers that are assigned to inside the method.
+        /// </summary>
+        /// <returns>The identifier that is assigned to with `=`</returns>
+        public IEnumerable<IdentifierNameSyntax> GetAssignees()
         {
             if (!HasKnownDeclaration())
             {
-                return Enumerable.Empty<ExpressionSyntax>();
+                return Enumerable.Empty<IdentifierNameSyntax>();
             }
             return declaration
                 .DescendantNodes()
                 .OfType<AssignmentExpressionSyntax>()
-                .Select(a => a.Left);
+                .Select(a => GetBaseIdentifier(a.Left));
         }
 
         /// <summary>
-        /// Gets all tokens that are assigned to inside the method.
+        /// Gets all identifiers that are assigned to inside the method.
         /// </summary>
-        /// <returns>The token that is assigned to with a unary </returns>
-        public IEnumerable<ExpressionSyntax> GetUnaryAssignees()
+        /// <returns>The identifier that is assigned to with a unary</returns>
+        public IEnumerable<IdentifierNameSyntax> GetUnaryAssignees()
         {
             if (!HasKnownDeclaration())
             {
-                return Enumerable.Empty<ExpressionSyntax>();
+                return Enumerable.Empty<IdentifierNameSyntax>();
             }
             return declaration
                 .DescendantNodes()
                 .OfType<PostfixUnaryExpressionSyntax>()
-                .Select(a => a.Operand)
+                .Select(a => GetBaseIdentifier(a.Operand))
                 .Union(
                     declaration
                         .DescendantNodes()
                         .OfType<PrefixUnaryExpressionSyntax>()
-                        .Select(a => a.Operand)
+                        .Select(a => GetBaseIdentifier(a.Operand))
                 );
         }
 
