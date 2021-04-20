@@ -206,7 +206,10 @@ namespace CsPurity
         /// making up the program to analyze </param>
         /// <param name="tree"></param>
         /// <returns></returns>
-        public static SemanticModel GetSemanticModel(IEnumerable<SyntaxTree> trees, SyntaxTree tree)
+        public static SemanticModel GetSemanticModel(
+            IEnumerable<SyntaxTree> trees,
+            SyntaxTree tree
+        )
         {
             return CSharpCompilation
                 .Create("AnalysisModel")
@@ -232,7 +235,9 @@ namespace CsPurity
         public static Purity GetPriorKnownPurity(Method method)
         {
             if (!PurityIsKnownPrior(method)) return Purity.Unknown;
-            else return knownPurities.Single(m => m.Item1 == method.identifier).Item2;
+            else return knownPurities
+                .Single(m => m.Item1 == method.identifier)
+                .Item2;
         }
 
         /// <summary>
@@ -256,7 +261,9 @@ namespace CsPurity
         /// identifiers found in an [Attribute].
         /// </summary>
         /// <param name="method">The method</param>
-        /// <returns>All IdentifierNameSyntax's inside <paramref name="method"/></returns>
+        /// <returns>
+        /// All IdentifierNameSyntax's inside <paramref name="method"/>
+        /// </returns>
         IEnumerable<IdentifierNameSyntax> GetIdentifiers(Method method)
         {
             if (method.declaration == null)
@@ -335,7 +342,6 @@ namespace CsPurity
         /// </returns>
         public bool ModifiesNonFreshIdentifier(Method method)
         {
-            if (method.ToString().Equals("[Pure] bool TypeConverterBase.CanConvertFrom")) ;
             return method
                 .GetAssignees()
                 .Union(method.GetUnaryAssignees())
@@ -365,7 +371,10 @@ namespace CsPurity
                 bool isProperty = symbol.Kind == SymbolKind.Property;
                 bool isMethod = symbol.Kind == SymbolKind.Method;
 
-                if (isStatic && (isField || isProperty) && !isMethod && !isEnum) return true;
+                if (isStatic && (isField || isProperty) && !isMethod && !isEnum)
+                {
+                    return true;
+                }
             }
             return false;
         }
@@ -1392,6 +1401,14 @@ namespace CsPurity
                 {
                     expression = elementAccess.Expression;
                 }
+                else if (expression is ParenthesizedExpressionSyntax parenAccess)
+                {
+                    expression = parenAccess.Expression;
+                }
+                else if (expression.Kind().Equals(SyntaxKind.PointerIndirectionExpression))
+                {
+                    return null;
+                }
                 else
                 {
                     return (IdentifierNameSyntax)expression;
@@ -1412,7 +1429,8 @@ namespace CsPurity
             return declaration
                 .DescendantNodes()
                 .OfType<AssignmentExpressionSyntax>()
-                .Select(a => GetBaseIdentifier(a.Left));
+                .Select(a => GetBaseIdentifier(a.Left))
+                .Where(a => a != null);
         }
 
         /// <summary>
@@ -1430,11 +1448,13 @@ namespace CsPurity
                 .OfType<PostfixUnaryExpressionSyntax>()
                 .Where(u => IsUnaryAssignment(u))
                 .Select(a => GetBaseIdentifier(a.Operand))
+                .Where(a => a != null)
                 .Union(declaration
                     .DescendantNodes()
                     .OfType<PrefixUnaryExpressionSyntax>()
                     .Where(u => IsUnaryAssignment(u))
                     .Select(a => GetBaseIdentifier(a.Operand))
+                    .Where(a => a != null)
                 );
 
             // Some UnaryExpressions are not assignments

@@ -2251,31 +2251,43 @@ namespace CsPurityTests
                         arr[0] = 1;
                         c2.arr2[0] = 2;
                     }
+
+                    public void Bar()
+                    {
+                        int i = 42;
+                        int *v = &i;
+                        *(v + 1) = foo;
+                        (*(v + 1))++;
+                    }
                 }
             ");
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
 
             var foo = HelpMethods.GetMethodDeclaration("Foo", root);
-            var assignees = foo.GetAssignees().Union(foo.GetUnaryAssignees());
+            var bar = HelpMethods.GetMethodDeclaration("Bar", root);
+            var assignees1 = foo.GetAssignees().Union(foo.GetUnaryAssignees());
+            var assignees2 = bar.GetAssignees().Union(bar.GetUnaryAssignees());
 
-            Assert.AreEqual(assignees.Count(), 7);
-            Assert.AreEqual(2, assignees
+            Assert.AreEqual(assignees1.Count(), 7);
+            Assert.AreEqual(2, assignees1
                 .Where(a => Method.GetBaseIdentifier(a).ToString().Equals("c1"))
                 .Count()
             );
-            Assert.AreEqual(3, assignees
+            Assert.AreEqual(3, assignees1
                 .Where(a => Method.GetBaseIdentifier(a).ToString().Equals("c2"))
                 .Count()
             );
-            Assert.AreEqual(1, assignees
+            Assert.AreEqual(1, assignees1
                 .Where(a => Method.GetBaseIdentifier(a).ToString().Equals("val"))
                 .Count()
             );
-            Assert.AreEqual(1, assignees
+            Assert.AreEqual(1, assignees1
                 .Where(a => Method.GetBaseIdentifier(a).ToString().Equals("arr"))
                 .Count()
             );
+
+            Assert.AreEqual(assignees2.Count(), 0);
         }
 
         [TestMethod]
