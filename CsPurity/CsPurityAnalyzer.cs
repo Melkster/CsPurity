@@ -1428,13 +1428,24 @@ namespace CsPurity
             return declaration
                 .DescendantNodes()
                 .OfType<PostfixUnaryExpressionSyntax>()
+                .Where(u => IsUnaryAssignment(u))
                 .Select(a => GetBaseIdentifier(a.Operand))
-                .Union(
-                    declaration
-                        .DescendantNodes()
-                        .OfType<PrefixUnaryExpressionSyntax>()
-                        .Select(a => GetBaseIdentifier(a.Operand))
+                .Union(declaration
+                    .DescendantNodes()
+                    .OfType<PrefixUnaryExpressionSyntax>()
+                    .Where(u => IsUnaryAssignment(u))
+                    .Select(a => GetBaseIdentifier(a.Operand))
                 );
+
+            // Some UnaryExpressions are not assignments
+            static bool IsUnaryAssignment(ExpressionSyntax expression)
+            {
+                SyntaxKind kind = expression.Kind();
+                return kind.Equals(SyntaxKind.PostIncrementExpression)
+                    || kind.Equals(SyntaxKind.PreIncrementExpression)
+                    || kind.Equals(SyntaxKind.PostDecrementExpression)
+                    || kind.Equals(SyntaxKind.PreDecrementExpression);
+            }
         }
 
         public override bool Equals(Object obj)

@@ -2337,6 +2337,14 @@ namespace CsPurityTests
                         int bar = 0;
                         return bar++;
                     }
+
+                    public void Baz()
+                    {
+                        bool b = true;
+                        // Logical negator is also a
+                        // PrefixUnaryExpressionSyntax, but isn't an assignment
+                        !b;
+                    }
                 }
             ");
             Analyzer analyzer = new Analyzer(file);
@@ -2345,9 +2353,12 @@ namespace CsPurityTests
 
             var foo = HelpMethods.GetMethodDeclaration("Foo", root);
             var bar = HelpMethods.GetMethodDeclaration("Bar", root);
+            var baz = HelpMethods.GetMethodDeclaration("Baz", root);
 
             var assignments1 = foo.GetUnaryAssignees();
             var assignments2 = bar.GetUnaryAssignees();
+            var assignments3 = baz.GetUnaryAssignees();
+
             Assert.AreEqual(4, assignments1.Count());
             Assert.IsTrue(assignments1.Where(a => a.ToString().Equals("val1")).Any());
             Assert.IsTrue(assignments1.Where(a => a.ToString().Equals("val2")).Any());
@@ -2356,6 +2367,8 @@ namespace CsPurityTests
 
             Assert.AreEqual(1, assignments2.Count());
             Assert.IsTrue(assignments2.Where(a => a.ToString().Equals("bar")).Any());
+
+            Assert.AreEqual(0, assignments3.Count());
         }
 
         [TestMethod]
