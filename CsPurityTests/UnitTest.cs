@@ -302,6 +302,10 @@ namespace CsPurityTests
                     public int foz() {
                         return 1;
                     }
+
+                    public unsafe int faz() {
+                        return 1;
+                    }
                 }
             ");
             LookupTable resultTable = Analyzer.Analyze(file);
@@ -310,11 +314,13 @@ namespace CsPurityTests
             var barDeclaration = resultTable.GetMethodByName("bar");
             var bazDeclaration = resultTable.GetMethodByName("baz");
             var fozDeclaration = resultTable.GetMethodByName("foz");
+            var fazDeclaration = resultTable.GetMethodByName("faz");
 
             Assert.AreEqual(Purity.Pure, resultTable.GetPurity(fooDeclaration));
             Assert.AreEqual(Purity.Impure, resultTable.GetPurity(barDeclaration));
             Assert.AreEqual(Purity.Impure, resultTable.GetPurity(bazDeclaration));
             Assert.AreEqual(Purity.Pure, resultTable.GetPurity(fozDeclaration));
+            Assert.AreEqual(Purity.Impure, resultTable.GetPurity(fazDeclaration));
         }
 
         [TestMethod]
@@ -2246,18 +2252,10 @@ namespace CsPurityTests
                         c1.c2.val2 = 1;
                         c2.val2++;
                         c1.c2.c3.val3 = 33;
-                        c2.c3.val3 = 34;
+                        ((c2).c3).val3 = 34;
                         val--;
                         arr[0] = 1;
                         c2.arr2[0] = 2;
-                    }
-
-                    public void Bar()
-                    {
-                        int i = 42;
-                        int *v = &i;
-                        *(v + 1) = foo;
-                        (*(v + 1))++;
                     }
                 }
             ");
@@ -2265,29 +2263,25 @@ namespace CsPurityTests
             var root = (CompilationUnitSyntax)tree.GetRoot();
 
             var foo = HelpMethods.GetMethodDeclaration("Foo", root);
-            var bar = HelpMethods.GetMethodDeclaration("Bar", root);
-            var assignees1 = foo.GetAssignees().Union(foo.GetUnaryAssignees());
-            var assignees2 = bar.GetAssignees().Union(bar.GetUnaryAssignees());
+            var assignees = foo.GetAssignees().Union(foo.GetUnaryAssignees());
 
-            Assert.AreEqual(assignees1.Count(), 7);
-            Assert.AreEqual(2, assignees1
+            Assert.AreEqual(assignees.Count(), 7);
+            Assert.AreEqual(2, assignees
                 .Where(a => Method.GetBaseIdentifier(a).ToString().Equals("c1"))
                 .Count()
             );
-            Assert.AreEqual(3, assignees1
+            Assert.AreEqual(3, assignees
                 .Where(a => Method.GetBaseIdentifier(a).ToString().Equals("c2"))
                 .Count()
             );
-            Assert.AreEqual(1, assignees1
+            Assert.AreEqual(1, assignees
                 .Where(a => Method.GetBaseIdentifier(a).ToString().Equals("val"))
                 .Count()
             );
-            Assert.AreEqual(1, assignees1
+            Assert.AreEqual(1, assignees
                 .Where(a => Method.GetBaseIdentifier(a).ToString().Equals("arr"))
                 .Count()
             );
-
-            Assert.AreEqual(assignees2.Count(), 0);
         }
 
         [TestMethod]
@@ -2609,6 +2603,28 @@ namespace CsPurityTests
                 barMethod,
                 HelpMethods.GetMethodDeclaration("bar", root)
             );
+        }
+
+        [TestMethod]
+        public void TestIsUnsafe()
+        {
+            var file = (@"
+                class C1
+                {
+                    unsafe int Foo()
+                    {
+                        return bar;
+                    }
+
+                    public int Bar() => 3;
+                }
+            ");
+            LookupTable resultTable = Analyzer.Analyze(file);
+            var fooDeclaration = resultTable.GetMethodByName("Foo");
+            var barDeclaration = resultTable.GetMethodByName("Bar");
+
+            Assert.IsTrue(fooDeclaration.isUnsafe());
+            Assert.IsFalse(barDeclaration.isUnsafe());
         }
     }
 }

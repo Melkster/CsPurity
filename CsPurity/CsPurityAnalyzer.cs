@@ -117,6 +117,10 @@ namespace CsPurity
                     {
                         SetPurityAndPropagate(method, GetPriorKnownPurity(method));
                     }
+                    else if (method.isUnsafe())
+                    {
+                        SetPurityAndPropagate(method, Purity.Impure);
+                    }
                     else if (analyzer.ReadsStaticFieldOrProperty(method))
                     {
                         SetPurityAndPropagate(method, Purity.Impure);
@@ -1361,6 +1365,15 @@ namespace CsPurity
                 .Equals(SyntaxKind.InterfaceDeclaration);
         }
 
+        public bool isUnsafe()
+        {
+            if (declaration == null) return false;
+            else return declaration
+                .Modifiers
+                .Where(m => m.IsKind(SyntaxKind.UnsafeKeyword))
+                .Count() > 0;
+        }
+
         /// <summary>
         /// Determines if method has a [Pure] attribute.
         /// </summary>
@@ -1405,10 +1418,6 @@ namespace CsPurity
                 {
                     expression = parenAccess.Expression;
                 }
-                else if (expression.Kind().Equals(SyntaxKind.PointerIndirectionExpression))
-                {
-                    return null;
-                }
                 else
                 {
                     return (IdentifierNameSyntax)expression;
@@ -1429,8 +1438,7 @@ namespace CsPurity
             return declaration
                 .DescendantNodes()
                 .OfType<AssignmentExpressionSyntax>()
-                .Select(a => GetBaseIdentifier(a.Left))
-                .Where(a => a != null);
+                .Select(a => GetBaseIdentifier(a.Left));
         }
 
         /// <summary>
@@ -1448,13 +1456,11 @@ namespace CsPurity
                 .OfType<PostfixUnaryExpressionSyntax>()
                 .Where(u => IsUnaryAssignment(u))
                 .Select(a => GetBaseIdentifier(a.Operand))
-                .Where(a => a != null)
                 .Union(declaration
                     .DescendantNodes()
                     .OfType<PrefixUnaryExpressionSyntax>()
                     .Where(u => IsUnaryAssignment(u))
                     .Select(a => GetBaseIdentifier(a.Operand))
-                    .Where(a => a != null)
                 );
 
             // Some UnaryExpressions are not assignments
