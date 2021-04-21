@@ -117,7 +117,7 @@ namespace CsPurity
                     {
                         SetPurityAndPropagate(method, GetPriorKnownPurity(method));
                     }
-                    else if (method.isUnsafe())
+                    else if (method.IsUnsafe())
                     {
                         SetPurityAndPropagate(method, Purity.Impure);
                     }
@@ -350,7 +350,7 @@ namespace CsPurity
                 .GetAssignees()
                 .Union(method.GetUnaryAssignees())
                 .Where(i => !IdentifierIsFresh(i, method))
-                .Count() > 0;
+                .Any();
         }
 
         public bool ReadsStaticFieldOrProperty(Method method)
@@ -408,7 +408,8 @@ namespace CsPurity
                 );
                 ISymbol symbol = model.GetSymbolInfo(identifier).Symbol;
 
-                if (symbol == null) {
+                if (symbol == null)
+                {
                     // Check if the invocation that `symbol` is part of exists
                     // in `knownPurities`, otherwise it's an unknown identifier
                     var invocation = identifier
@@ -533,12 +534,14 @@ namespace CsPurity
                 .Where(a => a[2..] == "--")
                 .Where(a => !validFlags.Contains(a));
 
-            if (args.Contains("--pure-attribute")) {
+            if (args.Contains("--pure-attribute"))
+            {
                 pureAttributesOnly = true;
                 args = args.Except(new string[] { "--pure-attribute" }).ToArray();
             }
 
-            if (args.Contains("--evaluate")) {
+            if (args.Contains("--evaluate"))
+            {
                 evaluate = true;
                 args = args.Except(new string[] { "--evaluate" }).ToArray();
             }
@@ -547,7 +550,8 @@ namespace CsPurity
             {
                 WriteLine("Please provide path(s) to the directory of C# file(s) to be analyzed.");
             }
-            else if (unrecognizedFlags.Any()) {
+            else if (unrecognizedFlags.Any())
+            {
                 WriteLine($"Unknown option: {unrecognizedFlags.First()}\n" +
                     $"Try using the flag --help for more information.");
             }
@@ -886,7 +890,8 @@ namespace CsPurity
         /// <param name="purity">The new purity</param>
         public void SetPurity(Method method, Purity purity)
         {
-            if (purity < GetPurity(method)) {
+            if (purity < GetPurity(method))
+            {
                 GetMethodRow(method)["purity"] = purity;
             }
         }
@@ -1365,13 +1370,39 @@ namespace CsPurity
                 .Equals(SyntaxKind.InterfaceDeclaration);
         }
 
-        public bool isUnsafe()
+
+        /// <summary>
+        /// Checks if method has the unsafe modifier.
+        /// </summary>
+        /// <returns>
+        /// True if this method, its class or its struct has the unsafe
+        /// modifer, otherwise false.
+        /// </returns>
+        public bool IsUnsafe()
         {
             if (declaration == null) return false;
-            else return declaration
+            bool unsafeMethod = ContainsUnsafeKeyword(declaration);
+            bool unsafeClass = ContainsUnsafeKeyword(
+                declaration.Ancestors().OfType<ClassDeclarationSyntax>()
+            );
+            bool unsafeStruct = ContainsUnsafeKeyword(
+                declaration.Ancestors().OfType<StructDeclarationSyntax>()
+            );
+            return unsafeMethod || unsafeClass || unsafeStruct;
+        }
+
+        bool ContainsUnsafeKeyword(MemberDeclarationSyntax node)
+        {
+            return ContainsUnsafeKeyword(new MemberDeclarationSyntax[] { node });
+        }
+
+        bool ContainsUnsafeKeyword(IEnumerable<MemberDeclarationSyntax> nodes)
+        {
+            return nodes.Where(n => n
                 .Modifiers
                 .Where(m => m.IsKind(SyntaxKind.UnsafeKeyword))
-                .Count() > 0;
+                .Any()
+            ).Any();
         }
 
         /// <summary>

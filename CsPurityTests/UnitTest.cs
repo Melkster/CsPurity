@@ -2613,18 +2613,59 @@ namespace CsPurityTests
                 {
                     unsafe int Foo()
                     {
-                        return bar;
+                        return 1;
                     }
 
                     public int Bar() => 3;
+                }
+
+                unsafe class C2
+                {
+                    int Baz()
+                    {
+                        return 1;
+                    }
+                }
+
+                class C3
+                {
+                    int Buz()
+                    {
+                        return 1;
+                    }
+                }
+
+                unsafe struct S1
+                {
+                    int Faz()
+                    {
+                        return 1;
+                    }
+                }
+
+
+                struct S2
+                {
+                    int Fuz()
+                    {
+                        return 1;
+                    }
                 }
             ");
             LookupTable resultTable = Analyzer.Analyze(file);
             var fooDeclaration = resultTable.GetMethodByName("Foo");
             var barDeclaration = resultTable.GetMethodByName("Bar");
+            var bazDeclaration = resultTable.GetMethodByName("Baz");
+            var buzDeclaration = resultTable.GetMethodByName("Buz");
+            var fazDeclaration = resultTable.GetMethodByName("Faz");
+            var fuzDeclaration = resultTable.GetMethodByName("Fuz");
 
-            Assert.IsTrue(fooDeclaration.isUnsafe());
-            Assert.IsFalse(barDeclaration.isUnsafe());
+            Assert.IsTrue(fooDeclaration.IsUnsafe());
+            Assert.IsFalse(barDeclaration.IsUnsafe());
+            Assert.IsTrue(bazDeclaration.IsUnsafe());
+            Assert.IsFalse(buzDeclaration.IsUnsafe());
+            Assert.IsTrue(fazDeclaration.IsUnsafe());
+            Assert.IsFalse(fuzDeclaration.IsUnsafe());
         }
     }
 }
