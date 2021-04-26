@@ -2256,6 +2256,19 @@ namespace CsPurityTests
                         val--;
                         arr[0] = 1;
                         c2.arr2[0] = 2;
+                        this.c1.c2.c3.val3 = 35;
+
+                        // Found in nodatime
+                        Unsafe.AsRef(this) = new Interval(newStart, newEnd);
+
+                        Foo.Bar.Unsafe.AsRef(this) = new Interval(newStart, newEnd);
+                    }
+
+                    public void Bar()
+                    {
+                        int a = 1, b = 2;
+                        int c = 2, d = 3;
+                        (a, b) = (c, d);
                     }
                 }
             ");
@@ -2263,23 +2276,40 @@ namespace CsPurityTests
             var root = (CompilationUnitSyntax)tree.GetRoot();
 
             var foo = HelpMethods.GetMethodDeclaration("Foo", root);
-            var assignees = foo.GetAssignees().Union(foo.GetUnaryAssignees());
+            var bar = HelpMethods.GetMethodDeclaration("Bar", root);
+            var assignees1 = foo.GetAssignees().Union(foo.GetUnaryAssignees());
+            var assignees2 = bar.GetAssignees().Union(bar.GetUnaryAssignees());
 
-            Assert.AreEqual(assignees.Count(), 7);
-            Assert.AreEqual(2, assignees
-                .Where(a => Method.GetBaseIdentifier(a).ToString().Equals("c1"))
+            var f = assignees1
+                .Where(a => Method.GetBaseIdentifiers(a)
+                    .SelectMany(i => i).ToString().Equals("c1")
+                );
+
+            Assert.AreEqual(assignees1.Count(), 10);
+            Assert.AreEqual(3, assignees1
+                .Where(a => Method.GetBaseIdentifiers(a).ToString().Equals("c1"))
                 .Count()
             );
-            Assert.AreEqual(3, assignees
-                .Where(a => Method.GetBaseIdentifier(a).ToString().Equals("c2"))
+            Assert.AreEqual(3, assignees1
+                .Where(a => Method.GetBaseIdentifiers(a).ToString().Equals("c2"))
                 .Count()
             );
-            Assert.AreEqual(1, assignees
-                .Where(a => Method.GetBaseIdentifier(a).ToString().Equals("val"))
+            Assert.AreEqual(1, assignees1
+                .Where(a => Method.GetBaseIdentifiers(a).ToString().Equals("val"))
                 .Count()
             );
-            Assert.AreEqual(1, assignees
-                .Where(a => Method.GetBaseIdentifier(a).ToString().Equals("arr"))
+            Assert.AreEqual(1, assignees1
+                .Where(a => Method.GetBaseIdentifiers(a).ToString().Equals("arr"))
+                .Count()
+            );
+
+            Assert.AreEqual(assignees1.Count(), 2);
+            Assert.AreEqual(1, assignees1
+                .Where(a => Method.GetBaseIdentifiers(a).ToString().Equals("c"))
+                .Count()
+            );
+            Assert.AreEqual(1, assignees1
+                .Where(a => Method.GetBaseIdentifiers(a).ToString().Equals("d"))
                 .Count()
             );
         }

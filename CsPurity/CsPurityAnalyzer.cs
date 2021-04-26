@@ -623,11 +623,11 @@ namespace CsPurity
                 {
                     WriteLine(err.Message);
                 }
-                catch (Exception err)
-                {
-                    WriteLine($"Something went wrong when reading the file(s)" +
-                        $":\n\n{err}");
-                }
+                // catch (Exception err)
+                // {
+                //     WriteLine($"Something went wrong when reading the file(s)" +
+                //         $":\n\n{err}");
+                // }
             }
 
             watch.Stop();
@@ -1433,25 +1433,45 @@ namespace CsPurity
         /// </summary>
         /// <param name="expression">The expression</param>
         /// <returns>If TODO</returns>
-        public static IdentifierNameSyntax GetBaseIdentifier(ExpressionSyntax expression)
+        public static IEnumerable<IdentifierNameSyntax> GetBaseIdentifiers(ExpressionSyntax expression)
         {
             while (true)
             {
-                if (expression is MemberAccessExpressionSyntax memberAccess)
+                if (expression is MemberAccessExpressionSyntax memberExpr)
                 {
-                    expression = memberAccess.Expression;
+                    expression = memberExpr.Expression;
                 }
-                else if (expression is ElementAccessExpressionSyntax elementAccess)
+                else if (expression is ElementAccessExpressionSyntax elementExpr)
                 {
-                    expression = elementAccess.Expression;
+                    expression = elementExpr.Expression;
                 }
-                else if (expression is ParenthesizedExpressionSyntax parenAccess)
+                else if (expression is ThisExpressionSyntax thisExpr)
                 {
-                    expression = parenAccess.Expression;
+                    return thisExpr
+                        .Parent
+                        .DescendantNodes()
+                        .OfType<IdentifierNameSyntax>();
+                }
+                else if (expression is ParenthesizedExpressionSyntax parenExpr)
+                {
+                    expression = parenExpr.Expression;
+                }
+                else if (expression is TupleExpressionSyntax tupleExpr)
+                {
+                    return tupleExpr
+                        .Arguments
+                        .SelectMany(a => GetBaseIdentifiers(a.Expression));
+                }
+                else if (expression is InvocationExpressionSyntax invocationExpr)
+                {
+                    expression = invocationExpr.Expression;
                 }
                 else
                 {
-                    return (IdentifierNameSyntax)expression;
+                    return new IdentifierNameSyntax[]
+                    {
+                        (IdentifierNameSyntax)expression
+                    };
                 }
             }
         }
@@ -1469,7 +1489,9 @@ namespace CsPurity
             return declaration
                 .DescendantNodes()
                 .OfType<AssignmentExpressionSyntax>()
-                .Select(a => GetBaseIdentifier(a.Left));
+                .Where(a => !(a.Left is DeclarationExpressionSyntax))
+                .SelectMany(a => GetBaseIdentifiers(a.Left))
+                ;
         }
 
         /// <summary>
@@ -1486,12 +1508,12 @@ namespace CsPurity
                 .DescendantNodes()
                 .OfType<PostfixUnaryExpressionSyntax>()
                 .Where(u => IsUnaryAssignment(u))
-                .Select(a => GetBaseIdentifier(a.Operand))
+                .SelectMany(a => GetBaseIdentifiers(a.Operand))
                 .Union(declaration
                     .DescendantNodes()
                     .OfType<PrefixUnaryExpressionSyntax>()
                     .Where(u => IsUnaryAssignment(u))
-                    .Select(a => GetBaseIdentifier(a.Operand))
+                    .SelectMany(a => GetBaseIdentifiers(a.Operand))
                 );
 
             // Some UnaryExpressions are not assignments
