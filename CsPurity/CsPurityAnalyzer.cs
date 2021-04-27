@@ -129,7 +129,11 @@ namespace CsPurity
                     {
                         SetPurityAndPropagate(method, Purity.ImpureThrowsException);
                     }
-                    else if (analyzer.ModifiesNonFreshIdentifier(method))
+                    else if (analyzer.ModifiesNonFreshIdentifier(method) == null)
+                    {
+                        SetPurityAndPropagate(method, Purity.Unknown);
+                    }
+                    else if (analyzer.ModifiesNonFreshIdentifier(method) ?? false)
                     {
                         SetPurityAndPropagate(method, Purity.Impure);
                     }
@@ -335,19 +339,21 @@ namespace CsPurity
             return symbolMethodAncestor == identifierMethodAncestor;
         }
 
-
         /// <summary>
         /// Checks if the method modifies an identifier that is no fresh.
         /// </summary>
         /// <param name="method">The method to check</param>
         /// <returns>
         /// True if <paramref name="method"/> modifies an identifier that isn't
-        /// fresh, otherwise false.
+        /// fresh, otherwise false. If an identifier's freshness could not be
+        /// determined, returns <c>null</c>.
         /// </returns>
-        public bool ModifiesNonFreshIdentifier(Method method)
+        public bool? ModifiesNonFreshIdentifier(Method method)
         {
-            return method
-                .GetAssignees()
+            IEnumerable<IdentifierNameSyntax> assignees = method.GetAssignees();
+
+            if (assignees.Contains(null)) return null;
+            else return assignees
                 .Union(method.GetUnaryAssignees())
                 .Where(i => !IdentifierIsFresh(i, method))
                 .Any();
@@ -623,11 +629,11 @@ namespace CsPurity
                 {
                     WriteLine(err.Message);
                 }
-                // catch (Exception err)
-                // {
-                //     WriteLine($"Something went wrong when reading the file(s)" +
-                //         $":\n\n{err}");
-                // }
+                catch (Exception err)
+                {
+                    WriteLine($"Something went wrong when reading the file(s)" +
+                        $":\n\n{err}");
+                }
             }
 
             watch.Stop();
@@ -1370,7 +1376,6 @@ namespace CsPurity
                 .Equals(SyntaxKind.InterfaceDeclaration);
         }
 
-
         /// <summary>
         /// Checks if method has the unsafe modifier.
         /// </summary>
@@ -1425,15 +1430,17 @@ namespace CsPurity
             return declaration?.Body != null || declaration?.ExpressionBody != null;
         }
 
-
         /// <summary>
         /// Gets the base identifier from an expression, i.e. the leftmost
-        /// identifier in a member access expression, or in the case of an
-        /// array access expression, the array's identifier.
+        /// identifier in a member access expression, or
+        /// in the case of an array access expression, the array's identifier.
         /// </summary>
         /// <param name="expression">The expression</param>
-        /// <returns>If TODO</returns>
-        public static IEnumerable<IdentifierNameSyntax> GetBaseIdentifiers(ExpressionSyntax expression)
+        /// <returns>
+        /// <paramref name="expression"/>'s leftmost identifier (exluding
+        /// <c>this</c>). If the identifier could not be found, <c>null</c>.
+        /// </returns>
+        public static IdentifierNameSyntax GetBaseIdentifiers(ExpressionSyntax expression)
         {
             while (true)
             {
@@ -1450,54 +1457,98 @@ namespace CsPurity
                     return thisExpr
                         .Parent
                         .DescendantNodes()
-                        .OfType<IdentifierNameSyntax>();
+                        .OfType<IdentifierNameSyntax>()
+                        .First(); // Assumes that there's only one identifier
                 }
                 else if (expression is ParenthesizedExpressionSyntax parenExpr)
                 {
                     expression = parenExpr.Expression;
                 }
-                else if (expression is TupleExpressionSyntax tupleExpr)
-                {
-                    return tupleExpr
-                        .Arguments
-                        .SelectMany(a => GetBaseIdentifiers(a.Expression));
-                }
                 else if (expression is InvocationExpressionSyntax invocationExpr)
                 {
                     expression = invocationExpr.Expression;
                 }
+                else if (expression is IdentifierNameSyntax identifier)
+                {
+                    return identifier;
+                }
                 else
                 {
-                    return new IdentifierNameSyntax[]
-                    {
-                        (IdentifierNameSyntax)expression
-                    };
+                    return null;
                 }
             }
         }
 
         /// <summary>
+        /// Recursively flattens a given TupleExpressionSyntax into an
+        /// IEnumerable.
+        /// </summary>
+        /// <param name="tuple">The TupleExpressionSyntax to flatten</param>
+        /// <returns>
+        /// An IEnumerable with the expressions contained in <paramref
+        /// name="tuple"/> and all potential subtuples.
+        /// </returns>
+        public static IEnumerable<ExpressionSyntax> FlattenTupleExpression(
+            TupleExpressionSyntax tuple
+        )
+        {
+            var result = new List<ExpressionSyntax>();
+
+            foreach (var argument in tuple.Arguments)
+            {
+                var expr = argument.Expression;
+                if (expr is TupleExpressionSyntax subTuple)
+                {
+                    result = result
+                        .Concat(FlattenTupleExpression(subTuple))
+                        .ToList();
+                }
+                else
+                {
+                    result.Add(expr);
+                }
+            }
+            return result;
+        }
+
+        /// <summary>
         /// Gets all identifiers that are assigned to inside the method.
         /// </summary>
-        /// <returns>The identifier that is assigned to with `=`</returns>
+        /// <returns>
+        /// The identifiers that are assigned to with `=`. If an assignee could
+        /// not be determined, it will be set to <c>null</c>.
+        /// </returns>
         public IEnumerable<IdentifierNameSyntax> GetAssignees()
         {
             if (!HasKnownDeclaration())
             {
                 return Enumerable.Empty<IdentifierNameSyntax>();
             }
-            return declaration
+            var assignments = declaration
                 .DescendantNodes()
                 .OfType<AssignmentExpressionSyntax>()
-                .Where(a => !(a.Left is DeclarationExpressionSyntax))
-                .SelectMany(a => GetBaseIdentifiers(a.Left))
-                ;
+                .Where(a => !(a.Left is DeclarationExpressionSyntax));
+
+            var nonTuples = assignments
+                .Where(a => !(a.Left is TupleExpressionSyntax))
+                .Select(a => GetBaseIdentifiers(a.Left));
+
+            var tupleExpressions = assignments
+                .Where(a => a.Left is TupleExpressionSyntax)
+                .SelectMany(t => FlattenTupleExpression((TupleExpressionSyntax)t.Left))
+                .Where(t => !(t is DeclarationExpressionSyntax))
+                .Select(e => GetBaseIdentifiers(e));
+            // TODO: refactor
+            return nonTuples.Concat(tupleExpressions);
         }
 
         /// <summary>
         /// Gets all identifiers that are assigned to inside the method.
         /// </summary>
-        /// <returns>The identifier that is assigned to with a unary</returns>
+        /// <returns>
+        /// The identifiers that are assigned to with a unary expression. If an
+        /// assignee could not be determined, it will be set to <c>null</c>.
+        /// </returns>
         public IEnumerable<IdentifierNameSyntax> GetUnaryAssignees()
         {
             if (!HasKnownDeclaration())
@@ -1508,12 +1559,12 @@ namespace CsPurity
                 .DescendantNodes()
                 .OfType<PostfixUnaryExpressionSyntax>()
                 .Where(u => IsUnaryAssignment(u))
-                .SelectMany(a => GetBaseIdentifiers(a.Operand))
+                .Select(a => GetBaseIdentifiers(a.Operand))
                 .Union(declaration
                     .DescendantNodes()
                     .OfType<PrefixUnaryExpressionSyntax>()
                     .Where(u => IsUnaryAssignment(u))
-                    .SelectMany(a => GetBaseIdentifiers(a.Operand))
+                    .Select(a => GetBaseIdentifiers(a.Operand))
                 );
 
             // Some UnaryExpressions are not assignments
