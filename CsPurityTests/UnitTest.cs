@@ -2256,6 +2256,32 @@ namespace CsPurityTests
                         val--;
                         arr[0] = 1;
                         c2.arr2[0] = 2;
+                        this.c1.c2.c3.val3 = 35;
+
+                        // Found in nodatime
+                        Unsafe.AsRef(this) = new Interval(newStart, newEnd);
+
+                        Foo.Bar.Unsafe.AsRef(this) = new Interval(newStart, newEnd);
+                    }
+
+                    public void Bar()
+                    {
+                        int a = 1, b = 2;
+                        int c = 2, d = 3;
+                        (a, b) = (c, d);
+                    }
+
+                    public void Baz()
+                    {
+                        int e = 1, f = 2;
+                        int g = 2, h = 3;
+                        (e, ((f, g), h)) = (1, ((2, 3), 4));
+                        (int j, int k) = (1, 2);
+                    }
+
+                    public void Faz()
+                    {
+                        (int j, int k) = (1, 2);
                     }
                 }
             ");
@@ -2263,25 +2289,46 @@ namespace CsPurityTests
             var root = (CompilationUnitSyntax)tree.GetRoot();
 
             var foo = HelpMethods.GetMethodDeclaration("Foo", root);
-            var assignees = foo.GetAssignees().Union(foo.GetUnaryAssignees());
+            var bar = HelpMethods.GetMethodDeclaration("Bar", root);
+            var baz = HelpMethods.GetMethodDeclaration("Baz", root);
+            var faz = HelpMethods.GetMethodDeclaration("Faz", root);
+            var assignees1 = foo.GetAssignees().Union(foo.GetUnaryAssignees());
+            var assignees2 = bar.GetAssignees().Union(bar.GetUnaryAssignees());
+            var assignees3 = baz.GetAssignees().Union(baz.GetUnaryAssignees());
+            var assignees4 = faz.GetAssignees().Union(faz.GetUnaryAssignees());
 
-            Assert.AreEqual(assignees.Count(), 7);
-            Assert.AreEqual(2, assignees
-                .Where(a => Method.GetBaseIdentifier(a).ToString().Equals("c1"))
-                .Count()
-            );
-            Assert.AreEqual(3, assignees
-                .Where(a => Method.GetBaseIdentifier(a).ToString().Equals("c2"))
-                .Count()
-            );
-            Assert.AreEqual(1, assignees
-                .Where(a => Method.GetBaseIdentifier(a).ToString().Equals("val"))
-                .Count()
-            );
-            Assert.AreEqual(1, assignees
-                .Where(a => Method.GetBaseIdentifier(a).ToString().Equals("arr"))
-                .Count()
-            );
+            Assert.AreEqual(assignees1.Count(), 10);
+            Assert.AreEqual(3, ContainsAmountOfIdentifiers(assignees1, "c1"));
+            Assert.AreEqual(3, ContainsAmountOfIdentifiers(assignees1, "c2"));
+            Assert.AreEqual(1, ContainsAmountOfIdentifiers(assignees1, "val"));
+            Assert.AreEqual(1, ContainsAmountOfIdentifiers(assignees1, "arr"));
+
+            Assert.AreEqual(assignees2.Count(), 2);
+            Assert.AreEqual(1, ContainsAmountOfIdentifiers(assignees2, "a"));
+            Assert.AreEqual(1, ContainsAmountOfIdentifiers(assignees2, "b"));
+
+            Assert.AreEqual(assignees3.Count(), 4);
+            Assert.AreEqual(1, ContainsAmountOfIdentifiers(assignees3, "e"));
+            Assert.AreEqual(1, ContainsAmountOfIdentifiers(assignees3, "f"));
+            Assert.AreEqual(1, ContainsAmountOfIdentifiers(assignees3, "g"));
+            Assert.AreEqual(1, ContainsAmountOfIdentifiers(assignees3, "h"));
+
+            Assert.AreEqual(assignees4.Count(), 0);
+            Assert.AreEqual(1, ContainsAmountOfIdentifiers(assignees3, "e"));
+
+            int ContainsAmountOfIdentifiers(
+                IEnumerable<IdentifierNameSyntax> assignees,
+                string identifier
+            )
+            {
+                return assignees
+                    .Where(a =>
+                        Method
+                            .GetBaseIdentifiers(a)
+                            .ToString()
+                            .Equals(identifier)
+                    ).Count();
+            }
         }
 
         [TestMethod]
@@ -2666,6 +2713,64 @@ namespace CsPurityTests
             Assert.IsFalse(buzDeclaration.IsUnsafe());
             Assert.IsTrue(fazDeclaration.IsUnsafe());
             Assert.IsFalse(fuzDeclaration.IsUnsafe());
+        }
+
+        [TestMethod]
+        public void TestFlattenTuple()
+        {
+            var file = (@"
+                class Class1
+                {
+                    public void Baz()
+                    {
+                        var t = (99, 98, 97);
+
+                        int e = 1, f = 2;
+                        int g = 2, h = 3;
+                        (e, ((f, g), h)) = (1, ((2, 3), 4));
+                    }
+                }
+            ");
+            var tree = CSharpSyntaxTree.ParseText(file);
+            var root = (CompilationUnitSyntax)tree.GetRoot();
+
+            var i = Method.FlattenTuple(
+                root.DescendantNodes().OfType<TupleExpressionSyntax>().First()
+            );
+
+            var smallTuple = root
+                .DescendantNodes()
+                .OfType<TupleExpressionSyntax>()
+                .First();
+
+            var largeTuple = root
+                .DescendantNodes()
+                .OfType<TupleExpressionSyntax>()
+                .ElementAt(1);
+
+            var flatSmallTuple = Method.FlattenTuple(smallTuple);
+            Assert.AreEqual(3, flatSmallTuple.Count());
+            Assert.AreEqual(1, ContainsAmountOfIdentifiers(flatSmallTuple, "99"));
+            Assert.AreEqual(1, ContainsAmountOfIdentifiers(flatSmallTuple, "98"));
+            Assert.AreEqual(1, ContainsAmountOfIdentifiers(flatSmallTuple, "97"));
+
+            var flatLargeTuple = Method.FlattenTuple(largeTuple);
+            Assert.AreEqual(4, flatLargeTuple.Count());
+            Assert.AreEqual(1, ContainsAmountOfIdentifiers(flatLargeTuple, "e"));
+            Assert.AreEqual(1, ContainsAmountOfIdentifiers(flatLargeTuple, "f"));
+            Assert.AreEqual(1, ContainsAmountOfIdentifiers(flatLargeTuple, "g"));
+            Assert.AreEqual(1, ContainsAmountOfIdentifiers(flatLargeTuple, "h"));
+
+            int ContainsAmountOfIdentifiers(
+                IEnumerable<ExpressionSyntax> expressions, string identifier
+            )
+            {
+                return expressions
+                    .Where(e => e
+                    .ToString()
+                    .Equals(identifier))
+                    .Count();
+            }
         }
     }
 }
