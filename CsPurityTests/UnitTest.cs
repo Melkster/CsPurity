@@ -2716,7 +2716,7 @@ namespace CsPurityTests
         }
 
         [TestMethod]
-        public void TestFlattenTupleExpression()
+        public void TestFlattenTuple()
         {
             var file = (@"
                 class Class1
@@ -2734,7 +2734,7 @@ namespace CsPurityTests
             var tree = CSharpSyntaxTree.ParseText(file);
             var root = (CompilationUnitSyntax)tree.GetRoot();
 
-            var i = Method.FlattenTupleExpression(
+            var i = Method.FlattenTuple(
                 root.DescendantNodes().OfType<TupleExpressionSyntax>().First()
             );
 
@@ -2748,13 +2748,13 @@ namespace CsPurityTests
                 .OfType<TupleExpressionSyntax>()
                 .ElementAt(1);
 
-            var flatSmallTuple = Method.FlattenTupleExpression(smallTuple);
+            var flatSmallTuple = Method.FlattenTuple(smallTuple);
             Assert.AreEqual(3, flatSmallTuple.Count());
             Assert.AreEqual(1, ContainsAmountOfIdentifiers(flatSmallTuple, "99"));
             Assert.AreEqual(1, ContainsAmountOfIdentifiers(flatSmallTuple, "98"));
             Assert.AreEqual(1, ContainsAmountOfIdentifiers(flatSmallTuple, "97"));
 
-            var flatLargeTuple = Method.FlattenTupleExpression(largeTuple);
+            var flatLargeTuple = Method.FlattenTuple(largeTuple);
             Assert.AreEqual(4, flatLargeTuple.Count());
             Assert.AreEqual(1, ContainsAmountOfIdentifiers(flatLargeTuple, "e"));
             Assert.AreEqual(1, ContainsAmountOfIdentifiers(flatLargeTuple, "f"));

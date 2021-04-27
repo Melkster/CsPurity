@@ -1488,7 +1488,7 @@ namespace CsPurity
         /// An IEnumerable with the expressions contained in <paramref
         /// name="tuple"/> and all potential subtuples.
         /// </returns>
-        public static IEnumerable<ExpressionSyntax> FlattenTupleExpression(
+        public static IEnumerable<ExpressionSyntax> FlattenTuple(
             TupleExpressionSyntax tuple
         )
         {
@@ -1500,7 +1500,7 @@ namespace CsPurity
                 if (expr is TupleExpressionSyntax subTuple)
                 {
                     result = result
-                        .Concat(FlattenTupleExpression(subTuple))
+                        .Concat(FlattenTuple(subTuple))
                         .ToList();
                 }
                 else
@@ -1529,16 +1529,16 @@ namespace CsPurity
                 .OfType<AssignmentExpressionSyntax>()
                 .Where(a => !(a.Left is DeclarationExpressionSyntax));
 
-            var nonTuples = assignments
+            IEnumerable<IdentifierNameSyntax> nonTuples = assignments
                 .Where(a => !(a.Left is TupleExpressionSyntax))
                 .Select(a => GetBaseIdentifiers(a.Left));
 
-            var tupleExpressions = assignments
+            IEnumerable<IdentifierNameSyntax> tupleExpressions = assignments
                 .Where(a => a.Left is TupleExpressionSyntax)
-                .SelectMany(t => FlattenTupleExpression((TupleExpressionSyntax)t.Left))
+                .SelectMany(t => FlattenTuple((TupleExpressionSyntax)t.Left))
                 .Where(t => !(t is DeclarationExpressionSyntax))
                 .Select(e => GetBaseIdentifiers(e));
-            // TODO: refactor
+
             return nonTuples.Concat(tupleExpressions);
         }
 
