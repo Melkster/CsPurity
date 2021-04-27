@@ -2526,10 +2526,10 @@ namespace CsPurityTests
             var square = HelpMethods.GetMethodDeclaration("Square", root);
             var baz = HelpMethods.GetMethodDeclaration("Baz", root);
 
-            Assert.IsTrue(analyzer.ModifiesNonFreshIdentifier(foo));
-            Assert.IsTrue(analyzer.ModifiesNonFreshIdentifier(bar));
-            Assert.IsFalse(analyzer.ModifiesNonFreshIdentifier(square));
-            Assert.IsFalse(analyzer.ModifiesNonFreshIdentifier(baz));
+            Assert.IsTrue(analyzer.ModifiesNonFreshIdentifier(foo) ?? false);
+            Assert.IsTrue(analyzer.ModifiesNonFreshIdentifier(bar) ?? false);
+            Assert.IsFalse(analyzer.ModifiesNonFreshIdentifier(square) ?? false);
+            Assert.IsFalse(analyzer.ModifiesNonFreshIdentifier(baz) ?? false);
         }
     }
 
