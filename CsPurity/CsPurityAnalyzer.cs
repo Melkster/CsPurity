@@ -594,6 +594,8 @@ namespace CsPurity
                     "            \t\tand false negatives based on the [Pure] attribute.\n" +
                     "  --verbose\t\tPrint out the name of each function being analyzed.\n"
                 );
+                watch.Stop();
+                return;
             }
             else if (args.Contains("--string"))
             {
