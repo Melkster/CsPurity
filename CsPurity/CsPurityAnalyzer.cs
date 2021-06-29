@@ -99,7 +99,10 @@ namespace CsPurity
         {
             Analyzer analyzer = new Analyzer(files, verbose);
             LookupTable table = analyzer.lookupTable;
-            WriteLine("Lookup table constructed. Calculating purity levels...");
+            if (verbose)
+            {
+                WriteLine("Lookup table constructed. Calculating purity levels...\n");
+            }
             WorkingSet workingSet = table.workingSet;
             bool tableModified = true;
 
