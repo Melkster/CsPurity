@@ -28,6 +28,9 @@ namespace CsPurity
         // Set this to true if enums should be considered to be impure.
         readonly public static bool enumsAreImpure = false;
 
+        // Determines if Analyzer should be verbose or not in its printouts.
+        public bool verbose = false;
+
         // All methods in the knownPurities are those that have an already
         // known purity level.
         public static readonly List<(string, Purity)> knownPurities
@@ -69,13 +72,20 @@ namespace CsPurity
             ("List.Dispose()",                      Purity.Pure),
         };
 
-        public Analyzer(IEnumerable<string> files)
+        public Analyzer(IEnumerable<string> files) : this(files, false) { }
+
+        public Analyzer(IEnumerable<string> files, bool verbose)
         {
             var trees = files.Select(f => CSharpSyntaxTree.ParseText(f)).ToList();
-            lookupTable = new LookupTable(trees);
+            lookupTable = new LookupTable(trees, verbose);
         }
 
         public Analyzer(string file) : this(new List<string> { file }) { }
+
+        public static LookupTable Analyze(IEnumerable<string> files)
+        {
+            return Analyze(files, false);
+        }
 
         /// <summary>
         /// Analyzes the purity of the given text.
@@ -85,9 +95,9 @@ namespace CsPurity
         /// A LookupTable containing each method in <paramref name="file"/>,
         /// its dependency set as well as its purity level.
         /// </returns>
-        public static LookupTable Analyze(IEnumerable<string> files)
+        public static LookupTable Analyze(IEnumerable<string> files, bool verbose)
         {
-            Analyzer analyzer = new Analyzer(files);
+            Analyzer analyzer = new Analyzer(files, verbose);
             LookupTable table = analyzer.lookupTable;
             WriteLine("Lookup table constructed. Calculating purity levels...");
             WorkingSet workingSet = table.workingSet;
@@ -463,9 +473,9 @@ namespace CsPurity
             return throws.Any();
         }
 
-        static void AnalyzeAndPrintEvaluate(IEnumerable<string> files)
+        static void AnalyzeAndPrintEvaluate(IEnumerable<string> files, bool verbose)
         {
-            LookupTable lt = Analyze(files)
+            LookupTable lt = Analyze(files, verbose)
                 .StripMethodsNotDeclaredInAnalyzedFiles()
                 .StripInterfaceMethods();
             WriteLine();
@@ -489,11 +499,12 @@ namespace CsPurity
             WriteLine($"  Total: {lt.CountMethods(false)}");
             WriteLine();
             WriteLine($"Total number of methods: {lt.CountMethods()}");
+            WriteLine(lt.GetFalsePositivesAndNegatives());
         }
 
-        public static void AnalyzeAndPrint(IEnumerable<string> files, bool pureAttributesOnly)
+        public static void AnalyzeAndPrint(IEnumerable<string> files, bool pureAttributesOnly, bool verbose)
         {
-            LookupTable lt = Analyze(files)
+            LookupTable lt = Analyze(files, verbose)
                 .StripMethodsNotDeclaredInAnalyzedFiles()
                 .StripInterfaceMethods();
             WriteLine(lt.ToStringNoDependencySet(pureAttributesOnly));
@@ -505,19 +516,18 @@ namespace CsPurity
             else
             {
                 WriteLine(lt.GetPurityRatios());
-                WriteLine(lt.GetFalsePositivesAndNegatives());
             }
         }
 
-        public static void AnalyzeAndPrint(IEnumerable<string> files, bool pureAttributesOnly, bool evaluate)
+        public static void AnalyzeAndPrint(IEnumerable<string> files, bool pureAttributesOnly, bool evaluate, bool verbose)
         {
-            if (evaluate) AnalyzeAndPrintEvaluate(files);
-            else AnalyzeAndPrint(files, pureAttributesOnly);
+            if (evaluate) AnalyzeAndPrintEvaluate(files, verbose);
+            else AnalyzeAndPrint(files, pureAttributesOnly, verbose);
         }
 
-        public static void AnalyzeAndPrint(string file, bool pureAttributesOnly, bool evaluate)
+        public static void AnalyzeAndPrint(string file, bool pureAttributesOnly, bool evaluate, bool verbose)
         {
-            AnalyzeAndPrint(new List<string> { file }, pureAttributesOnly, evaluate);
+            AnalyzeAndPrint(new List<string> { file }, pureAttributesOnly, evaluate, verbose);
         }
 
         static void Main(string[] args)
@@ -525,6 +535,7 @@ namespace CsPurity
             var watch = Stopwatch.StartNew();
             bool pureAttributesOnly = false;
             bool evaluate = false;
+            bool verbose = false;
             List<string> validFlags = new List<string>
             {
                 "--help",
@@ -533,7 +544,8 @@ namespace CsPurity
                 "--string",
                 "--files",
                 "--pure-attribute",
-                "--evaluate"
+                "--evaluate",
+                "--verbose"
             };
             IEnumerable<string> unrecognizedFlags = args
                 .Where(a => a.Length > 2)
@@ -550,6 +562,12 @@ namespace CsPurity
             {
                 evaluate = true;
                 args = args.Except(new string[] { "--evaluate" }).ToArray();
+            }
+
+            if (args.Contains("--verbose"))
+            {
+                verbose = true;
+                args = args.Except(new string[] { "--verbose" }).ToArray();
             }
 
             if (!args.Any())
@@ -573,7 +591,8 @@ namespace CsPurity
                     "  --files\t\tProvide arguments as the paths to individual files to be analyzed.\n" +
                     "  --pure-attribute\tOnly output purity of methods that have the [Pure] attribute.\n" +
                     "  --evaluate\t\tEvaluate the implementaiton by outputting in terms of true \n" +
-                    "            \t\tand false negatives based on the [Pure] attribute."
+                    "            \t\tand false negatives based on the [Pure] attribute.\n" +
+                    "  --verbose\t\tPrint out the name of each function being analyzed.\n"
                 );
             }
             else if (args.Contains("--string"))
@@ -582,7 +601,7 @@ namespace CsPurity
                 if (flagIndex < args.Length)
                 {
                     string file = args[flagIndex];
-                    AnalyzeAndPrint(file, pureAttributesOnly, evaluate);
+                    AnalyzeAndPrint(file, pureAttributesOnly, evaluate, verbose);
                 }
                 else
                 {
@@ -598,7 +617,7 @@ namespace CsPurity
                         a => File.ReadAllText(a)
                     );
 
-                    AnalyzeAndPrint(files, pureAttributesOnly, evaluate);
+                    AnalyzeAndPrint(files, pureAttributesOnly, evaluate, verbose);
                 }
                 catch (FileNotFoundException err)
                 {
@@ -623,7 +642,7 @@ namespace CsPurity
                      ).SelectMany(files => files)
                      .Select(a => File.ReadAllText(a));
 
-                    AnalyzeAndPrint(files, pureAttributesOnly, evaluate);
+                    AnalyzeAndPrint(files, pureAttributesOnly, evaluate, verbose);
                 }
                 catch (FileNotFoundException err)
                 {
@@ -651,6 +670,7 @@ namespace CsPurity
         public DataTable table = new DataTable();
         public WorkingSet workingSet;
         public readonly IEnumerable<SyntaxTree> trees;
+        public bool verbose = false;
 
         public LookupTable()
         {
@@ -659,11 +679,13 @@ namespace CsPurity
             table.Columns.Add("purity", typeof(Purity));
         }
 
-        public LookupTable(IEnumerable<SyntaxTree> trees) : this()
+        public LookupTable(IEnumerable<SyntaxTree> trees) : this(trees, false) { }
+
+        public LookupTable(IEnumerable<SyntaxTree> trees, bool verbose) : this()
         {
             this.trees = trees;
 
-            BuildLookupTable();
+            BuildLookupTable(verbose);
             workingSet = new WorkingSet(this);
         }
 
@@ -684,8 +706,12 @@ namespace CsPurity
         /// <summary>
         /// Builds the lookup table and calculates each method's dependency
         /// set.
+        /// <param name="verbose">
+        /// Determines if lookup table should print out
+        /// each method while being constructed.
+        /// </param>
         /// </summary>
-        public void BuildLookupTable()
+        public void BuildLookupTable(bool verbose)
         {
             foreach (var tree in trees)
             {
@@ -701,7 +727,10 @@ namespace CsPurity
                     // MethodDeclarationSyntaxes
                     if (!method.IsInterfaceMethod())
                     {
-                        WriteLine($"Calculating dependencies for {method}.");
+                        if (verbose)
+                        {
+                            WriteLine($"Calculating dependencies for {method}.");
+                        }
                         var dependencies = CalculateDependencies(method);
                         AddMethod(method);
                         foreach (var dependency in dependencies)
@@ -1129,17 +1158,13 @@ namespace CsPurity
             string falseNegativesText = falseNegatives.Any() ?
                 $"These methods were classified as impure (false negatives):\n\n" +
                 string.Join("\n", falseNegatives.Select(m => "  " + m)) + $"\n\n"
-                : "False negatives:\n";
+                : "";
             string falsePositivesText = falsePositives.Any() ?
                 $"These methods were classified as pure (false positives):\n\n" +
                 string.Join("\n", falsePositives.Select(m => "  " + m)) + $"\n\n"
-                : "False positives:\n";
+                : "";
 
             return "\n" + falseNegativesText +
-
-                $"  Amount: {CountFalseNegatives()}\n" +
-                $"   - Throw exceptions: {throwExceptionCount}\n" +
-                $"   - Other: {otherImpuresCount}\n\n" +
 
                 falsePositivesText +
 
